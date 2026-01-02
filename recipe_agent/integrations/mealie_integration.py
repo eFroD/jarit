@@ -1,6 +1,7 @@
 """This module serves the functionality for communication with a Mealie instance."""
 
 import httpx
+import json
 from pydantic import HttpUrl
 
 
@@ -68,17 +69,19 @@ async def push_recipe_to_mealie(
         str: Success message
     """
     mealie_endpoint = mealie_endpoint.rstrip("/")
-    send_recipe_url = f"{mealie_endpoint}/api/recipes"
+    send_recipe_url = f"{mealie_endpoint}/api/recipes/create/html-or-json"
 
     headers = {
         "Authorization": f"Bearer {mealie_api_key}",
         "accept": "application/json",
         "Content-Type": "application/json",
     }
-
+    body = {
+        "includeTags": False,
+        "data": json.dumps(recipe, ensure_ascii=False),
+    }
     async with httpx.AsyncClient(timeout=30.0) as client:
-        print(recipe)
-        response = await client.post(send_recipe_url, headers=headers, json=recipe)
+        response = await client.post(send_recipe_url, headers=headers, json=body)
         response.raise_for_status()
         slug = response.json()
 
