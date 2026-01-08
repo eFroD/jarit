@@ -2,16 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime
-from recipe_agent.db.database import get_db
-from recipe_agent.db.models.users import User, UserRole
-from recipe_agent.db.models.api_keys import APIKey
-from recipe_agent.core.security import (
+from jarit.db.database import get_db
+from jarit.db.models.users import User, UserRole
+from jarit.db.models.api_keys import APIKey
+from jarit.core.security import (
     oauth2_scheme,
     decode_token,
     oauth2_scheme_optional,
 )
-from recipe_agent.auth.service import get_user_by_username, create_user
-from recipe_agent.auth.schemas import UserCreate
+from jarit.auth.service import get_user_by_username, create_user
+from jarit.auth.schemas import UserCreate
 
 
 async def get_current_user(

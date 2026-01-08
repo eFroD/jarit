@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from sqlalchemy import func
-from recipe_agent.core.security import get_password_hash, verify_password
+from jarit.core.security import get_password_hash, verify_password
 from ..db.models.users import User, UserRole
 from .schemas import UserCreate
 import os

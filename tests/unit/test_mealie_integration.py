@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import patch, Mock, AsyncMock, MagicMock
 from pydantic import HttpUrl, BaseModel
 import httpx
-from recipe_agent.integrations.mealie_integration import (
+from jarit.integrations.mealie_integration import (
     push_recipe_to_mealie,
     push_image_to_mealie,
     MEALIE_ENDPOINT,
@@ -80,7 +80,7 @@ class TestPushRecipeToMealie:
     async def test_push_recipe_with_image_success(self, sample_recipe_dict):
         """Test successful recipe push with image upload."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             # Setup mock client
             mock_client = AsyncMock()
@@ -133,7 +133,7 @@ class TestPushRecipeToMealie:
     async def test_push_recipe_without_image(self, sample_recipe_without_image):
         """Test recipe push without image."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -161,7 +161,7 @@ class TestPushRecipeToMealie:
         sample_recipe_dict["image"] = ""
 
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -184,7 +184,7 @@ class TestPushRecipeToMealie:
         recipe_dict = sample_recipe_model.model_dump(by_alias=True, mode="json")
 
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -220,7 +220,7 @@ class TestPushRecipeToMealie:
     async def test_push_recipe_http_error(self, sample_recipe_dict):
         """Test handling of HTTP errors during recipe push."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -239,7 +239,7 @@ class TestPushRecipeToMealie:
     async def test_push_recipe_422_unprocessable_entity(self, sample_recipe_dict):
         """Test handling of 422 validation errors."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -264,7 +264,7 @@ class TestPushRecipeToMealie:
     async def test_slug_format_without_quotes(self, sample_recipe_dict):
         """Test that slug is returned without quotes."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -303,7 +303,7 @@ class TestPushImageToMealie:
     async def test_upload_png_image_success(self):
         """Test successful PNG image upload."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -350,7 +350,7 @@ class TestPushImageToMealie:
     async def test_upload_jpg_image_from_content_type(self):
         """Test JPG image upload with content-type detection."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -377,7 +377,7 @@ class TestPushImageToMealie:
     async def test_upload_webp_image(self):
         """Test WebP image upload."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -403,7 +403,7 @@ class TestPushImageToMealie:
     async def test_image_extension_fallback_from_url(self):
         """Test extension detection from URL when content-type is missing."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -430,7 +430,7 @@ class TestPushImageToMealie:
     async def test_image_extension_default_fallback(self):
         """Test default jpg extension when detection fails."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -457,7 +457,7 @@ class TestPushImageToMealie:
     async def test_image_download_404_error(self):
         """Test handling of image download failure."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -477,7 +477,7 @@ class TestPushImageToMealie:
     async def test_image_upload_500_error(self):
         """Test handling of image upload failure."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -505,7 +505,7 @@ class TestPushImageToMealie:
     async def test_instagram_cdn_url_handling(self):
         """Test handling of Instagram CDN URLs with query parameters."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -536,7 +536,7 @@ class TestPushImageToMealie:
     async def test_timeout_configuration(self):
         """Test that timeout is properly configured."""
         with patch(
-            "recipe_agent.integrations.mealie_integration.httpx.AsyncClient"
+            "jarit.integrations.mealie_integration.httpx.AsyncClient"
         ) as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value.__aenter__.return_value = mock_client

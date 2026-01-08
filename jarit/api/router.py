@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
-from recipe_agent.api.v1.endpoints import recipes
-from recipe_agent.api.v1.endpoints import integrations
-from recipe_agent.api.v1.endpoints import auth, users
-from recipe_agent.api.v1.endpoints.users import get_current_user
+from jarit.api.v1.endpoints import recipes
+from jarit.api.v1.endpoints import integrations
+from jarit.api.v1.endpoints import auth, users
+from jarit.api.v1.endpoints.users import get_current_user
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(auth.router, prefix="/auth", tags=["authentication"])

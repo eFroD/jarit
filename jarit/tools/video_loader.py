@@ -5,8 +5,8 @@ import os
 import tempfile
 from openai import OpenAI
 
-from recipe_agent.models.input_models.video import VideoUrl
-from recipe_agent.models.output_models.video import (
+from jarit.models.input_models.video import VideoUrl
+from jarit.models.output_models.video import (
     VideoDescriptionResponse,
     VideoTranscriptResponse,
 )

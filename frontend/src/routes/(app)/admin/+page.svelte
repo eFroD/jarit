@@ -26,5 +26,5 @@
 {/if}
 
 <svelte:head>
-  <title>Admin Panel - Recipe Agent</title>
+  <title>Admin Panel - JarIt</title>
 </svelte:head>

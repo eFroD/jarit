@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from recipe_agent.models.input_models.video import VideoUrl
-from recipe_agent.tools.video_loader import get_description, get_transcript
+from jarit.models.input_models.video import VideoUrl
+from jarit.tools.video_loader import get_description, get_transcript
 
 
 def test_get_description_success():
@@ -35,7 +35,7 @@ def test_get_transcript_success_real_file(tmp_path):
 
     with (
         patch("yt_dlp.YoutubeDL") as mock_ydl,
-        patch("recipe_agent.tools.video_loader.OpenAI") as mock_openai_class,
+        patch("jarit.tools.video_loader.OpenAI") as mock_openai_class,
         patch("tempfile.TemporaryDirectory") as mock_tempdir,
     ):
         # Patch TemporaryDirectory to return our tmp_path
@@ -83,7 +83,7 @@ def test_get_transcript_openai_failure(tmp_path):
 
     with (
         patch("yt_dlp.YoutubeDL") as mock_ydl,
-        patch("recipe_agent.tools.video_loader.OpenAI") as mock_openai_class,
+        patch("jarit.tools.video_loader.OpenAI") as mock_openai_class,
         patch("tempfile.TemporaryDirectory") as mock_tempdir,
     ):
         # Patch TemporaryDirectory to return our tmp_path

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SQLEnum
 from enum import Enum
 from sqlalchemy.sql import func
-from recipe_agent.db.database import Base
+from jarit.db.database import Base
 from sqlalchemy.orm import relationship
 
 

@@ -2,15 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 import httpx
-from recipe_agent.models.output_models.recipe import Recipe
-from recipe_agent.integrations.mealie_integration import (
+from jarit.models.output_models.recipe import Recipe
+from jarit.integrations.mealie_integration import (
     push_recipe_to_mealie,
     verify_mealie_user,
 )
-from recipe_agent.api.v1.endpoints.users import get_current_user
-from recipe_agent.db.models.api_keys import APIKey
-from recipe_agent.db.models.users import User
-from recipe_agent.db.database import get_db
+from jarit.api.v1.endpoints.users import get_current_user
+from jarit.db.models.api_keys import APIKey
+from jarit.db.models.users import User
+from jarit.db.database import get_db
 
 
 router = APIRouter()

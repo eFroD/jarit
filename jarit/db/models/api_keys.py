@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, TIMESTAMP, text, Boolean
 from sqlalchemy.orm import relationship
-from recipe_agent.db.database import Base
+from jarit.db.database import Base
 
 
 class APIKey(Base):

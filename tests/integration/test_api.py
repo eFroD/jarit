@@ -1,11 +1,11 @@
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
-from recipe_agent.main import app
+from jarit.main import app
 
 client = TestClient(app)
 
 
-@patch("recipe_agent.agents.video_agent.video_agent.run", new_callable=AsyncMock)
+@patch("jarit.agents.video_agent.video_agent.run", new_callable=AsyncMock)
 def test_extract_recipe(mock_run):
     mock_run.return_value.output = AsyncMock()  # Ensure output is a mock object
     mock_run.return_value.output = {

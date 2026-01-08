@@ -1,5 +1,5 @@
 from pydantic_evals.dataset import Case
-from recipe_agent.models.output_models.recipe import Recipe
+from jarit.models.output_models.recipe import Recipe
 
 
 recipe_1 = {

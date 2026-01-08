@@ -1,8 +1,8 @@
-# Recipe Agent
+# JarIt!
 
 **AI-powered recipe extraction from videos to Mealie**
 
-Recipe Agent is an intelligent application that automatically extracts structured recipes from video content (YouTube, TikTok, Instagram, and more using AI and seamlessly uploads them to your [Mealie](https://mealie.io/) recipe manager.
+JarIt is an intelligent application that automatically extracts structured recipes from video content (YouTube, TikTok, Instagram, and more using AI and seamlessly uploads them to your [Mealie](https://mealie.io/) recipe manager.
 
 
 ## Features
@@ -163,7 +163,7 @@ Required for Whisper transcription (mandatory) and optional for GPT models:
 1. Visit [OpenAI API Keys](https://platform.openai.com/api-keys)
 2. Sign in or create an account
 3. Click "Create new secret key"
-4. Name your key (e.g., "Recipe Agent")
+4. Name your key 
 5. Copy the API key
 6. Add to `.env`: `OPENAI_API_KEY=your_key_here`
 
@@ -194,7 +194,7 @@ Log in with your Mealie credentials
 #### Step 5: Generate New Token
 
 1. Click the **"Create API Token"** or **"Generate Token"** button
-2. Enter a name for your token (e.g., "Recipe Agent")
+2. Enter a name for your token.
 3. Set an expiration date (optional - "Never" is recommended for convenience)
 4. Click **"Create"** or **"Generate"**
 
@@ -207,9 +207,9 @@ Log in with your Mealie credentials
    ```
 3. Store it securely - you won't be able to see it again!
 
-#### Step 7: Configure in Recipe Agent
+#### Step 7: Configure in JarIt
 
-1. Log in to Recipe Agent
+1. Log in to JarIt
 2. Navigate to your **Dashboard**
 3. Scroll to the **"Mealie Configuration"** section
 4. Enter your Mealie details:

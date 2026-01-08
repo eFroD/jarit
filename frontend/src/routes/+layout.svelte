@@ -37,7 +37,7 @@
 </script>
 
 <svelte:head>
-  <title>Recipe Agent - Extract recipes to Mealie</title>
+  <title>JarIt - Extract recipes to Mealie</title>
   <meta name="description" content="Extract recipes from videos to your Mealie instance using AI" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 </svelte:head>

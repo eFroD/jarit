@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
-from recipe_agent.db.database import get_db
-from recipe_agent.api.v1.endpoints.users import User, get_current_user_optional
-from recipe_agent.core.security import create_access_token
-from recipe_agent.auth.schemas import UserCreate, UserResponse, Token
-from recipe_agent.auth.service import create_user, authenticate_user
+from jarit.db.database import get_db
+from jarit.api.v1.endpoints.users import User, get_current_user_optional
+from jarit.core.security import create_access_token
+from jarit.auth.schemas import UserCreate, UserResponse, Token
+from jarit.auth.service import create_user, authenticate_user
 import os
 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))

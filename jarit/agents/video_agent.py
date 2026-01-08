@@ -1,9 +1,9 @@
 """This agent obtains the description of a recipe and validates it against the pydantic standard for recipes."""
 
 from pydantic_ai import Agent
-from recipe_agent.tools.video_loader import get_description, get_transcript
-from recipe_agent.models.output_models import RecipeResponse
-from recipe_agent.agents.model_factory import create_model
+from jarit.tools.video_loader import get_description, get_transcript
+from jarit.models.output_models import RecipeResponse
+from jarit.agents.model_factory import create_model
 
 model = create_model()
 video_agent = Agent(

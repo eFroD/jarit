@@ -1,5 +1,5 @@
 import pytest
-from recipe_agent.agents.model_factory import create_model
+from jarit.agents.model_factory import create_model
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.ollama import OllamaProvider
