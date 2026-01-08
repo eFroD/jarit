@@ -47,7 +47,8 @@
   <div class="w-full max-w-md">
     <div class="bg-white rounded-lg shadow-md p-8">
       <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-cyan-600 mb-2">JarIt</h1>
+        <h1 class="flex items-center text-3xl font-bold text-cyan-600 mb-2">
+  <img src="/logo_800.png" alt="JarIt" class="h-8 w-auto mr-2"> JarIt</h1>
         <p class="text-gray-600">Extract recipes from videos to Mealie</p>
       </div>
 

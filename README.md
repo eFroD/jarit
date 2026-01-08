@@ -1,4 +1,8 @@
-# JarIt!
+<div align="center">
+
+<img src="frontend/static/logo_800.png" alt="JarIt" width="150">
+<h1>JarIt!</h1>
+</div>
 
 **AI-powered recipe extraction from videos to Mealie**
 
