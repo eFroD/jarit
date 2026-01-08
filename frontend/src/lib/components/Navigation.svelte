@@ -27,12 +27,21 @@
             <span class="text-sm text-gray-700">
               Welcome, <strong class="text-gray-900">{$user.username}</strong>
             </span>
+            {#if $user.role === 'ADMIN'}
+             <a href="/admin" class="inline-block px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 transition-colors duration-200 cursor-pointer font-medium text-sm no-underline">
+               Admin Panel
+              </a>      
+            {/if}
             <button
               on:click={handleLogout}
               class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium text-sm"
             >
               Logout
             </button>
+          </div>
+        {:else if $authToken}
+          <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-500">Loading...</span>
           </div>
         {/if}
       </div>

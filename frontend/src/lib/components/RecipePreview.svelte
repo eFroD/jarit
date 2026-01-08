@@ -39,6 +39,32 @@
     }
   }
 
+  function editInstruction(index: number, value: string) {
+    if (recipe && recipe.recipeInstructions) {
+      const instruction = recipe.recipeInstructions[index];
+      if (instruction && '@type' in instruction && instruction['@type'] === 'HowToStep') {
+        instruction.text = value;
+        recipe.recipeInstructions = [...recipe.recipeInstructions];
+        extractedRecipe.set(recipe);
+      }
+    }
+  }
+
+  function addInstruction() {
+    if (recipe) {
+      if (!recipe.recipeInstructions) recipe.recipeInstructions = [];
+      recipe.recipeInstructions = [...recipe.recipeInstructions, { '@type': 'HowToStep', text: '' }];
+      extractedRecipe.set(recipe);
+    }
+  }
+
+  function removeInstruction(index: number) {
+    if (recipe && recipe.recipeInstructions) {
+      recipe.recipeInstructions = recipe.recipeInstructions.filter((_, i) => i !== index);
+      extractedRecipe.set(recipe);
+    }
+  }
+
   async function handleUpload() {
     if (!recipe) return;
 
@@ -229,6 +255,50 @@
             {/if}
           </div>
         </div>
+
+        <!-- Instructions -->
+        <div class="bg-white rounded-lg shadow-md p-6 space-y-4">
+          <div class="flex justify-between items-center border-b pb-3">
+            <h2 class="text-xl font-bold text-gray-900">Instructions</h2>
+            <button
+              type="button"
+              on:click={addInstruction}
+              class="text-xs px-3 py-1 bg-cyan-100 text-cyan-700 rounded hover:bg-cyan-200 font-medium"
+            >
+              + Add Step
+            </button>
+          </div>
+
+          <div class="space-y-3 max-h-96 overflow-y-auto">
+            {#if recipe.recipeInstructions && recipe.recipeInstructions.length > 0}
+              {#each recipe.recipeInstructions as instruction, i (i)}
+                {#if instruction && '@type' in instruction && instruction['@type'] === 'HowToStep'}
+                  <div class="flex gap-2">
+                    <span class="flex-shrink-0 w-8 h-8 bg-cyan-100 text-cyan-700 rounded-full flex items-center justify-center font-semibold text-sm">
+                      {i + 1}
+                    </span>
+                    <textarea
+                      value={instruction.text}
+                      on:change={(e) => editInstruction(i, e.currentTarget.value)}
+                      rows="2"
+                      class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none"
+                      placeholder="Enter step instructions..."
+                    />
+                    <button
+                      type="button"
+                      on:click={() => removeInstruction(i)}
+                      class="px-3 py-2 text-red-600 hover:text-red-800 font-medium"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                {/if}
+              {/each}
+            {:else}
+              <p class="text-gray-500 text-sm py-4">No instructions added</p>
+            {/if}
+          </div>
+        </div>
       </div>
 
       <!-- Preview Sidebar -->
@@ -275,6 +345,11 @@
               <p class="font-semibold text-gray-700">Ingredients</p>
               <p class="text-gray-600">{recipe.recipeIngredient?.length || 0} items</p>
             </div>
+
+            <div>
+              <p class="font-semibold text-gray-700">Instructions</p>
+              <p class="text-gray-600">{recipe.recipeInstructions?.length || 0} steps</p>
+            </div>
           </div>
 
           <div class="border-t pt-4 space-y-2">
@@ -303,9 +378,3 @@
     <p class="text-gray-500">No recipe to preview</p>
   </div>
 {/if}
-
-<style>
-  :global(body) {
-    overflow-y: auto;
-  }
-</style>

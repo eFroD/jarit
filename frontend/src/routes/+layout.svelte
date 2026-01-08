@@ -1,15 +1,36 @@
 <!-- src/routes/+layout.svelte -->
 <script lang="ts">
   import '../app.css';
-  import { authToken } from '$lib/store';
+  import { onMount } from 'svelte';
+  import { authToken, user, apiKeys, mealieKey } from '$lib/store';
   import { goto } from '$app/navigation';
   import Navigation from '$lib/components/Navigation.svelte';
+  import { api } from '$lib/api';
 
-  // Redirect to login if not authenticated
-  $: if (!$authToken && typeof window !== 'undefined') {
+  let initialized = false;
+  onMount(async () => {
+    if ($authToken && !$user) {
+      try {
+        const userData = await api.getCurrentUser();
+        user.set(userData);
+
+        const keys = await api.listApiKeys();
+        apiKeys.set(keys);
+        const mealieApiKey = keys.find(k => k.service_name === 'mealie');
+        mealieKey.set(mealieApiKey || null);
+      } catch (err) {
+        console.error('Failed to initialize user data:', err);
+        authToken.set(null);
+        user.set(null);
+      }
+    }
+    initialized = true;
+  });
+
+  $: if (initialized && !$authToken && typeof window !== 'undefined') {
     const path = window.location.pathname;
-    // Allow auth routes
-    if (!path.includes('/login') && !path.includes('/register')) {
+
+    if (!path.includes('/login') && !path.includes('/register') && path !== '/') {
       goto('/login');
     }
   }

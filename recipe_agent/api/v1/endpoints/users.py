@@ -10,7 +10,8 @@ from recipe_agent.core.security import (
     decode_token,
     oauth2_scheme_optional,
 )
-from recipe_agent.auth.service import get_user_by_username
+from recipe_agent.auth.service import get_user_by_username, create_user
+from recipe_agent.auth.schemas import UserCreate
 
 
 async def get_current_user(
@@ -58,6 +59,19 @@ async def admin_user_required(
 
 
 router = APIRouter()
+admin_router = APIRouter()
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    username: str
+    role: str
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class APIKeyCreate(BaseModel):
@@ -77,13 +91,18 @@ class APIKeyResponse(BaseModel):
         from_attributes = True
 
 
-# Get current user profile
-@router.get("/me")
+@router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
-    return current_user
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        username=current_user.username,
+        role=current_user.role.value,
+        is_active=current_user.is_active,
+        created_at=current_user.created_at,
+    )
 
 
-# List all API keys for current user
 @router.get("/me/api-keys", response_model=list[APIKeyResponse])
 async def list_user_api_keys(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -96,7 +115,6 @@ async def list_user_api_keys(
     return keys
 
 
-# Add or update API key
 @router.post("/me/api-keys", status_code=status.HTTP_201_CREATED)
 async def create_or_update_api_key(
     api_key_data: APIKeyCreate,
@@ -130,7 +148,6 @@ async def create_or_update_api_key(
     return {"message": f"{api_key_data.service_name} API key created successfully"}
 
 
-# Get specific API key by service
 @router.get("/me/api-keys/{service_name}", response_model=APIKeyResponse)
 async def get_api_key_by_service(
     service_name: str,
@@ -155,7 +172,6 @@ async def get_api_key_by_service(
     return api_key
 
 
-# Delete API key
 @router.delete("/me/api-keys/{service_name}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_api_key(
     service_name: str,
@@ -174,4 +190,56 @@ async def delete_api_key(
         )
 
     db.delete(api_key)
+    db.commit()
+
+@admin_router.get("/users", response_model=list[UserResponse])
+async def list_all_users(
+    admin_user: User = Depends(admin_user_required), db: Session = Depends(get_db)
+):
+    users = db.query(User).all()
+    return [
+        UserResponse(
+            id=user.id,
+            email=user.email,
+            username=user.username,
+            role=user.role.value if isinstance(user.role, UserRole) else user.role,
+            is_active=user.is_active,
+            created_at=user.created_at,
+        )
+        for user in users
+    ]
+
+
+@admin_router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_new_user(
+    user_data: UserCreate,
+    admin_user: User = Depends(admin_user_required),
+    db: Session = Depends(get_db),
+):
+    new_user = create_user(db, user_data, current_user=admin_user)
+    return UserResponse(
+        id=new_user.id,
+        email=new_user.email,
+        username=new_user.username,
+        role=new_user.role.value if isinstance(new_user.role, UserRole) else new_user.role,
+        is_active=new_user.is_active,
+        created_at=new_user.created_at,
+    )
+
+
+@admin_router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: int,
+    admin_user: User = Depends(admin_user_required),
+    db: Session = Depends(get_db),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.id == admin_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    db.delete(user)
     db.commit()
