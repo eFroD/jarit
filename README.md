@@ -176,8 +176,8 @@ Follow the instruction from the quick start but use the `docker-compose.dev.yml`
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/eFroD/recipeAgent
-cd recipe-agent
+git clone https://github.com/eFroD/jarit
+cd jarit
 
 # 2. Copy and configure environment file
 cp .env_example .env
@@ -202,7 +202,7 @@ For local development with hot reload:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. Navigate to project root
-cd recipe-agent
+cd jarit
 
 # 3. Install Python dependencies
 uv sync
