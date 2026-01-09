@@ -1,0 +1,29 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    gcc \
+    ffmpeg \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock ./
+
+RUN pip install uv
+
+RUN uv sync
+
+COPY . .
+
+# Update yt-dlp on startup
+RUN echo '#!/bin/bash\n\
+echo "Updating yt-dlp..."\n\
+uv sync --upgrade-package yt-dlp\n\
+echo "Starting application..."\n\
+exec "$@"' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+EXPOSE 8000
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

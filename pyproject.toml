@@ -5,7 +5,29 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "pydantic>=2.11.9",
+    "fastapi>=0.118.0",
+    "logfire[fastapi]>=4.10.0",
+    "openai>=1.108.2",
+    "psycopg2-binary>=2.9.11",
+    "pydantic[email]>=2.11.9",
     "pydantic-ai>=1.0.10",
     "pydantic-ai-slim[google]>=1.0.10",
+    "python-jose[cryptography]>=3.5.0",
+    "python-multipart>=0.0.20",
+    "sqlalchemy>=2.0.44",
+    "yt-dlp>=2025.9.23",
+    "passlib[argon2]>=1.7.4",
+]
+
+[dependency-groups]
+dev = [
+    "pydantic-evals[logfire]>=1.0.11",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "pytest-env>=1.1.5",
+    "ruff>=0.13.3",
+    "scikit-learn>=1.7.2",
+    "sentence-transformers>=5.1.1",
+    "uvicorn>=0.37.0",
 ]
