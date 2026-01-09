@@ -52,7 +52,7 @@ JarIt is an intelligent application that automatically extracts structured recip
 
 ## Installation
 
-### Quick Start (Docker)
+### Quick Start (Docker Compose)
 
 The fastest way to get started is using Docker:
 
@@ -66,7 +66,7 @@ cp .env_example .env
 nano .env  # Edit with your API keys
 
 # 3. Start all services (PostgreSQL, Backend, Frontend)
-docker-compose -f docker-compose.prod.yml up -d --build
+docker-compose -d
 
 # 4. Access the application
 # Frontend: http://localhost
@@ -74,6 +74,124 @@ docker-compose -f docker-compose.prod.yml up -d --build
 ```
 
 That's it! The application should now be running.
+
+### Without Cloning the Repo
+You can also use the docker-compose.yml directly:
+```yaml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - recipe-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/efrod/jarit/backend:latest
+    expose:
+      - "8000"
+    environment:
+      - PYTHONPATH=/app
+      - DATABASE_URL=${DATABASE_URL}
+      - LOGFIRE_WRITE_TOKEN=${LOGFIRE_WRITE_TOKEN:-}
+      - LLM_PROVIDER=${LLM_PROVIDER}
+      - MODEL_NAME=${MODEL_NAME}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OLLAMA_URL=${OLLAMA_URL:-}
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM:-HS256}
+    command: uv run uvicorn main:app --host 0.0.0.0 --port 8000 --env-file /app/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - recipe-network
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/efrod/jarit/frontend:latest
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - recipe-network
+    restart: unless-stopped
+
+networks:
+  recipe-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+```
+
+But then you will also have to add the .env file:
+
+```bash
+# Settings and API-Keys for Models to use
+# Note OPENAI_API_KEY is mandatory, as it powers whisper
+# Get the model names and provider names from the pydantic AI documentation.
+LLM_PROVIDER=google
+MODEL_NAME=gemini-2.5-flash
+GOOGLE_API_KEY=YOUR-KEY-HERE
+OPENAI_API_KEY=YOUR-KEY-HERE
+
+# JWT settings
+# Allow users to create new accounts. Set it to false if you want full control over who can access the app.
+# If false, the first user created will be an admin user who can create other users.
+ALLOW_REGISTRATION=false
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+SECRET_KEY=CHANGEME
+ALGORITHM=HS256
+
+# PostgreSQL settings - Change credentials
+POSTGRES_DB=devdb
+POSTGRES_USER=devuser
+POSTGRES_PASSWORD=devpassword
+DATABASE_URL=postgresql://devuser:devpassword@postgres:5432/devdb
+
+# Monitoring (optional but useful for debugging)
+LOGFIRE_WRITE_TOKEN=LOGFIRE_TOKEN
+
+```
+
+### Build Docker Images Locally
+Follow the instruction from the quick start but use the `docker-compose.dev.yml` file:
+
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/eFroD/recipeAgent
+cd recipe-agent
+
+# 2. Copy and configure environment file
+cp .env_example .env
+nano .env  # Edit with your API keys
+
+# 3. Start all services (PostgreSQL, Backend, Frontend)
+docker compose -f docker-compose.dev.yml up --build -d
+
+# 4. Access the application
+# Frontend: http://localhost
+# Backend API docs: http://localhost:8000/docs
+```
 
 ### Development Setup
 
