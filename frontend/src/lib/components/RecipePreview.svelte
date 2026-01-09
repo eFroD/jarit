@@ -128,9 +128,9 @@
       </div>
     {/if}
 
-    <div class="grid grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
       <!-- Edit Form -->
-      <div class="col-span-2 space-y-6">
+       <div class="lg:col-span-2 space-y-6 order-2 lg:order-1">
         <!-- Recipe Metadata -->
         <div class="bg-white rounded-lg shadow-md p-6 space-y-4">
           <h2 class="text-xl font-bold text-gray-900 border-b pb-3">Recipe Metadata</h2>
@@ -302,7 +302,7 @@
       </div>
 
       <!-- Preview Sidebar -->
-      <div class="col-span-1">
+       <div class="lg:col-span-1 order-1 lg:sticky lg:top-20 lg:max-h-screen lg:overflow-y-auto">
         <div class="bg-white rounded-lg shadow-md p-6 sticky top-20 space-y-4">
           <h3 class="text-lg font-bold text-gray-900">Preview</h3>
 
