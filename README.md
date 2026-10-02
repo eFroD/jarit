@@ -22,7 +22,7 @@ JarIt is an intelligent application that automatically extracts structured recip
 - **Recipe Editor** - Review and edit extracted recipes before uploading
 - **Mealie Integration** - One-click upload to your Mealie instance
 - **Multi-User Support** - User authentication with admin panel
-- **Secure** - JWT authentication, encrypted API keys, role-based access
+- **Secure** - JWT authentication, role-based access, and users' integration credentials (e.g. Mealie API keys) encrypted at rest
 - **Docker Ready** - Complete Docker setup for easy deployment
 
 ## Table of Contents
@@ -34,6 +34,7 @@ JarIt is an intelligent application that automatically extracts structured recip
   - [Build Docker Images Locally](#build-docker-images-locally)
   - [Development Setup](#development-setup)
 - [Configuration](#configuration)
+  - [Encryption Key for Integration Credentials](#encryption-key-for-integration-credentials)
   - [Obtaining Mealie API Key](#obtaining-mealie-api-key)
 - [Usage](#usage)
 - [Contributing](#contributing)
@@ -112,6 +113,7 @@ services:
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       - SECRET_KEY=${SECRET_KEY}
+      - JARIT_ENCRYPTION_KEY=${JARIT_ENCRYPTION_KEY}
       - ALGORITHM=${ALGORITHM:-HS256}
     command: uv run uvicorn main:app --host 0.0.0.0 --port 8000
     depends_on:
@@ -158,6 +160,9 @@ ALLOW_REGISTRATION=false
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 SECRET_KEY=CHANGEME
 ALGORITHM=HS256
+
+# Encryption of user integration credentials - required, see below
+JARIT_ENCRYPTION_KEY=CHANGEME
 
 # PostgreSQL settings - Change credentials
 POSTGRES_DB=devdb
@@ -255,6 +260,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30   # JWT token expiration
 SECRET_KEY=your_secret_key       
 ALGORITHM=HS256
 
+# Encryption of users' integration credentials (required)
+JARIT_ENCRYPTION_KEY=your_generated_key
+
 
 POSTGRES_DB=devdb
 POSTGRES_USER=devuser
@@ -263,6 +271,34 @@ DATABASE_URL=postgresql://devuser:devpassword@postgres:5432/devdb
 
 VITE_API_BASE=http://localhost:8000/api/v1
 ```
+
+### Encryption Key for Integration Credentials
+
+Users store their own integration credentials (e.g. Mealie API keys) in JarIt. These are encrypted in the database with a key that only you, the host, hold. The key is read from the `JARIT_ENCRYPTION_KEY` environment variable and is never written to the database or the logs.
+
+**Generate a key** with one of these commands:
+
+```bash
+# With uv, inside a checkout of this repository
+uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# With Docker only
+docker run --rm python:3.13-slim sh -c "pip -q install cryptography && python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+```
+
+Add the output to your `.env` file:
+
+```bash
+JARIT_ENCRYPTION_KEY=<your generated key>
+```
+
+If the key is missing or invalid, the backend does not start. Instead it prints a freshly generated key and the exact `.env` line to copy into your `.env`. That suggestion appears in the container log, so if you prefer, generate the key yourself with one of the commands above.
+
+**Back up the key** together with your database backups. Without it, the stored integration credentials cannot be read.
+
+**Rotating or losing the key:** JarIt uses exactly one key and does not re-encrypt existing data. If you change or lose it, all stored integration credentials become unreadable. The app keeps working, and affected users see a message asking them to enter their Mealie API key again in the settings. There is no way to recover the old values without the old key.
+
+**Upgrading from an earlier version:** Older versions stored integration credentials in plain text. Set `JARIT_ENCRYPTION_KEY` before upgrading. On the first start, JarIt encrypts all existing credentials automatically, and users do not need to do anything.
 
 ### Obtaining API Keys
 
