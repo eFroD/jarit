@@ -5,7 +5,9 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { api } from '$lib/api';
-	import { failureLabel, isTerminal, STATUS_LABELS } from '$lib/jobs';
+	import { errorMessage, locale, t } from '$lib/i18n';
+	import { formatDate, formatDateTime, formatRelative } from '$lib/i18n/format';
+	import { failureLabel, isTerminal, statusLabel } from '$lib/jobs';
 	import type { ExtractionJobSummary, JobStatus } from '$lib/types';
 
 	let jobs: ExtractionJobSummary[] = [];
@@ -21,7 +23,7 @@
 			jobs = await api.listExtractionJobs();
 			loadError = '';
 		} catch (err) {
-			loadError = err instanceof Error ? err.message : 'Could not load your history';
+			loadError = errorMessage(err, $t);
 		} finally {
 			loading = false;
 		}
@@ -44,34 +46,23 @@
 			await api.retryExtractionJob(job.id);
 			goto(resolve('/(app)/jobs/[id]', { id: job.id }));
 		} catch (err) {
-			actionError = err instanceof Error ? err.message : 'Could not restart the extraction';
+			actionError = errorMessage(err, $t);
 			setBusy(job.id, false);
 		}
 	}
 
 	async function remove(job: ExtractionJobSummary) {
-		if (!confirm(`Delete "${job.title ?? job.video_url}" from your history?`)) return;
+		if (!confirm($t.history_confirmDelete({ name: job.title ?? job.video_url }))) return;
 		actionError = '';
 		setBusy(job.id, true);
 		try {
 			await api.deleteExtractionJob(job.id);
 			jobs = jobs.filter((j) => j.id !== job.id);
 		} catch (err) {
-			actionError = err instanceof Error ? err.message : 'Could not delete the extraction';
+			actionError = errorMessage(err, $t);
 		} finally {
 			setBusy(job.id, false);
 		}
-	}
-
-	function relativeTime(iso: string): string {
-		const seconds = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-		if (seconds < 60) return 'just now';
-		const minutes = Math.round(seconds / 60);
-		if (minutes < 60) return `${minutes} min ago`;
-		const hours = Math.round(minutes / 60);
-		if (hours < 24) return `${hours} h ago`;
-		const days = Math.round(hours / 24);
-		return days === 1 ? 'yesterday' : `${days} days ago`;
 	}
 
 	const BADGE: Record<JobStatus, string> = {
@@ -96,14 +87,14 @@
 	{/if}
 
 	{#if loading}
-		<p class="p-8 text-gray-500">Loading…</p>
+		<p class="p-8 text-gray-500">{$t.common_loading}</p>
 	{:else if loadError}
 		<p class="p-8 text-red-700">{loadError}</p>
 	{:else if jobs.length === 0}
 		<div class="p-8 text-center">
-			<p class="mb-4 text-gray-600">No extractions yet.</p>
+			<p class="mb-4 text-gray-600">{$t.history_empty}</p>
 			<a href={resolve('/dashboard')} class="font-medium text-cyan-600 hover:text-cyan-700"
-				>Extract your first recipe</a
+				>{$t.history_firstRecipe}</a
 			>
 		</div>
 	{:else}
@@ -119,22 +110,22 @@
 							</p>
 						{/if}
 						<div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
-							<span class="text-gray-500" title={new Date(job.created_at).toLocaleString()}>
-								{relativeTime(job.created_at)}
+							<span class="text-gray-500" title={formatDateTime(job.created_at, $locale)}>
+								{formatRelative(job.created_at, $locale)}
 							</span>
 							<span class="rounded-full px-2 py-0.5 font-medium {BADGE[job.status]}">
-								{STATUS_LABELS[job.status]}
+								{statusLabel(job.status, $t)}
 							</span>
 							{#if job.uploaded_to_mealie_at}
 								<span
 									class="rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-800"
-									title={new Date(job.uploaded_to_mealie_at).toLocaleString()}
+									title={formatDateTime(job.uploaded_to_mealie_at, $locale)}
 								>
-									In Mealie · {new Date(job.uploaded_to_mealie_at).toLocaleDateString()}
+									{$t.history_inMealie({ date: formatDate(job.uploaded_to_mealie_at, $locale) })}
 								</span>
 							{/if}
 							{#if job.status === 'FAILED'}
-								<span class="text-red-700">{failureLabel(job.failure_reason)}</span>
+								<span class="text-red-700">{failureLabel(job.failure_reason, $t)}</span>
 							{/if}
 						</div>
 					</div>
@@ -144,20 +135,20 @@
 							<a
 								href={resolve('/(app)/jobs/[id]/recipe', { id: job.id })}
 								class="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-medium !text-white no-underline hover:bg-cyan-700"
-								>Open</a
+								>{$t.history_open}</a
 							>
 						{:else if job.status === 'FAILED'}
 							<button
 								on:click={() => retry(job)}
 								disabled={busy.has(job.id)}
 								class="rounded-lg bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-cyan-700 disabled:opacity-50"
-								>Try again</button
+								>{$t.common_tryAgain}</button
 							>
 						{:else}
 							<a
 								href={resolve('/(app)/jobs/[id]', { id: job.id })}
 								class="rounded-lg bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-900 no-underline hover:bg-gray-300"
-								>View progress</a
+								>{$t.common_viewProgress}</a
 							>
 						{/if}
 						{#if isTerminal(job.status)}
@@ -165,7 +156,7 @@
 								on:click={() => remove(job)}
 								disabled={busy.has(job.id)}
 								class="rounded-lg px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-800 disabled:opacity-50"
-								>Delete</button
+								>{$t.common_delete}</button
 							>
 						{/if}
 					</div>

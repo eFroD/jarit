@@ -4,7 +4,8 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { api, ApiError } from '$lib/api';
-	import { failureLabel, pollJob, STATUS_LABELS } from '$lib/jobs';
+	import { errorMessage, t } from '$lib/i18n';
+	import { failureLabel, pollJob, statusLabel } from '$lib/jobs';
 	import { currentJobId, extractedRecipe, suggestedRecipe } from '$lib/store';
 	import type { ExtractionJob, JobStatus } from '$lib/types';
 
@@ -59,7 +60,7 @@
 			seen = new Set(['QUEUED']);
 			start();
 		} catch (err) {
-			retryError = err instanceof Error ? err.message : 'Could not restart the extraction';
+			retryError = errorMessage(err, $t);
 		} finally {
 			retrying = false;
 		}
@@ -82,9 +83,8 @@
 	}
 
 	function elapsed(since: string, until: number): string {
-		const seconds = Math.max(0, Math.round((until - new Date(since).getTime()) / 1000));
-		const minutes = Math.floor(seconds / 60);
-		return minutes > 0 ? `${minutes} min ${seconds % 60} s` : `${seconds} s`;
+		const total = Math.max(0, Math.round((until - new Date(since).getTime()) / 1000));
+		return $t.progress_duration({ minutes: Math.floor(total / 60), seconds: total % 60 });
 	}
 
 	start();
@@ -97,18 +97,18 @@
 
 <div class="rounded-lg bg-white p-8 shadow-md">
 	{#if notFound}
-		<h2 class="mb-2 text-2xl font-bold text-gray-900">Extraction not found</h2>
-		<p class="mb-6 text-gray-600">This extraction does not exist.</p>
+		<h2 class="mb-2 text-2xl font-bold text-gray-900">{$t.progress_notFoundTitle}</h2>
+		<p class="mb-6 text-gray-600">{$t.error_JOB_NOT_FOUND}</p>
 		<a href={resolve('/history')} class="font-medium text-cyan-600 hover:text-cyan-700"
-			>Go to your history</a
+			>{$t.progress_goToHistory}</a
 		>
 	{:else}
-		<h2 class="mb-2 text-2xl font-bold text-gray-900">Extracting recipe</h2>
+		<h2 class="mb-2 text-2xl font-bold text-gray-900">{$t.progress_title}</h2>
 		{#if job}
 			<p class="mb-1 font-mono text-sm break-all text-gray-600">{job.video_url}</p>
 			{#if job.status !== 'FAILED' && job.status !== 'COMPLETED'}
 				<p class="mb-6 text-sm text-gray-500">
-					Running for {elapsed(job.started_at, now)} · you can leave this page and come back later
+					{$t.progress_runningFor({ duration: elapsed(job.started_at, now) })}
 				</p>
 			{:else}
 				<div class="mb-6"></div>
@@ -142,21 +142,21 @@
 							class:text-gray-900={state === 'current' || state === 'done'}
 							class:text-gray-400={state === 'pending' || state === 'skipped'}
 						>
-							{STATUS_LABELS[step]}
-							{#if state === 'skipped'}<span class="text-xs">(not needed)</span>{/if}
+							{statusLabel(step, $t)}
+							{#if state === 'skipped'}<span class="text-xs">{$t.progress_notNeeded}</span>{/if}
 						</span>
 					</li>
 				{/each}
 			</ol>
 
 			{#if job.status === 'COMPLETED'}
-				<p class="mt-6 text-green-700">✓ Done, opening the recipe…</p>
+				<p class="mt-6 text-green-700">{$t.progress_done}</p>
 			{/if}
 
 			{#if job.status === 'FAILED'}
 				<div class="mt-6 rounded-lg border border-red-200 bg-red-50 p-4">
 					<p class="mb-3 text-red-800">
-						<strong>✗ {failureLabel(job.failure_reason)}</strong>
+						<strong>✗ {failureLabel(job.failure_reason, $t)}</strong>
 					</p>
 					{#if retryError}
 						<p class="mb-3 text-sm text-red-700">{retryError}</p>
@@ -166,16 +166,16 @@
 						disabled={retrying}
 						class="rounded-lg bg-cyan-600 px-4 py-2 font-medium text-white hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						{retrying ? 'Restarting…' : 'Try again'}
+						{retrying ? $t.common_restarting : $t.common_tryAgain}
 					</button>
 				</div>
 			{/if}
 		{:else}
-			<p class="text-gray-500">Loading…</p>
+			<p class="text-gray-500">{$t.common_loading}</p>
 		{/if}
 
 		{#if connectionProblem}
-			<p class="mt-4 text-sm text-yellow-700">Connection problem, retrying…</p>
+			<p class="mt-4 text-sm text-yellow-700">{$t.progress_connectionProblem}</p>
 		{/if}
 	{/if}
 </div>

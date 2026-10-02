@@ -1,33 +1,19 @@
 // src/lib/jobs.ts
 
 import { api } from './api';
+import type { Messages } from './i18n';
 import type { ExtractionJob, FailureReason, JobStatus } from './types';
 
-export const STATUS_LABELS: Record<JobStatus, string> = {
-	QUEUED: 'Waiting',
-	FETCHING_DESCRIPTION: 'Fetching video description',
-	TRANSCRIBING: 'Transcribing audio',
-	EXTRACTING: 'Extracting recipe',
-	COMPLETED: 'Completed',
-	FAILED: 'Failed'
-};
-
-export const FAILURE_REASON_LABELS: Record<FailureReason, string> = {
-	VIDEO_UNREACHABLE: 'Video unreachable',
-	NO_RECIPE_FOUND: 'No recipe found in this video',
-	TRANSCRIPTION_FAILED: 'Transcription failed',
-	LLM_ERROR: 'Language model error',
-	TIMEOUT: 'Timed out',
-	RESTARTED: 'Interrupted by an application restart',
-	UNKNOWN: 'Unknown error, please try again'
-};
+export function statusLabel(status: JobStatus, m: Messages): string {
+	return m[`jobs_status_${status}`];
+}
 
 export function isTerminal(status: JobStatus): boolean {
 	return status === 'COMPLETED' || status === 'FAILED';
 }
 
-export function failureLabel(reason: FailureReason | null): string {
-	return reason ? FAILURE_REASON_LABELS[reason] : FAILURE_REASON_LABELS.UNKNOWN;
+export function failureLabel(reason: FailureReason | null, m: Messages): string {
+	return m[`jobs_failure_${reason ?? 'UNKNOWN'}`];
 }
 
 /**

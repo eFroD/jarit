@@ -1,5 +1,7 @@
 // src/lib/types.ts
 
+import type { Locale } from './i18n/languages';
+
 export interface User {
 	id: number;
 	email: string;
@@ -7,6 +9,7 @@ export interface User {
 	role: 'ADMIN' | 'USER';
 	is_active: boolean;
 	created_at: string;
+	language: Locale;
 }
 
 export interface APIKey {

@@ -4,6 +4,7 @@
 	import { user, authToken, error, isLoading, apiKeys, mealieKey } from '$lib/store';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { errorMessage, t } from '$lib/i18n';
 
 	let username = '';
 	let password = '';
@@ -16,7 +17,8 @@
 
 		try {
 			if (!username || !password) {
-				throw new Error('Please enter username and password');
+				localError = $t.login_missingFields;
+				return;
 			}
 
 			const response = await api.login(username, password);
@@ -32,7 +34,7 @@
 			error.set(null);
 			goto(resolve('/dashboard'));
 		} catch (err) {
-			localError = err instanceof Error ? err.message : 'Login failed';
+			localError = errorMessage(err, $t);
 			error.set(localError);
 		} finally {
 			isLoading.set(false);
@@ -51,15 +53,15 @@
 				<h1 class="mb-2 flex items-center text-3xl font-bold text-cyan-600">
 					<img src="/logo_800.png" alt="JarIt" class="mr-2 h-8 w-auto" /> JarIt
 				</h1>
-				<p class="text-gray-600">Extract recipes from videos to Mealie</p>
+				<p class="text-gray-600">{$t.app_tagline}</p>
 			</div>
 
-			<h2 class="mb-6 text-2xl font-bold text-gray-900">Sign In</h2>
+			<h2 class="mb-6 text-2xl font-bold text-gray-900">{$t.login_title}</h2>
 
 			{#if localError}
 				<div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
 					<p class="text-sm text-red-800">
-						<strong>✗ Error:</strong>
+						<strong>✗ {$t.common_error}</strong>
 						{localError}
 					</p>
 				</div>
@@ -68,7 +70,7 @@
 			<form on:submit={handleLogin} class="space-y-4">
 				<div>
 					<label for="username" class="mb-1 block text-sm font-medium text-gray-700">
-						Username
+						{$t.login_username}
 					</label>
 					<input
 						id="username"
@@ -82,7 +84,7 @@
 
 				<div>
 					<label for="password" class="mb-1 block text-sm font-medium text-gray-700">
-						Password
+						{$t.login_password}
 					</label>
 					<input
 						id="password"
@@ -99,17 +101,17 @@
 					disabled={$isLoading}
 					class="w-full rounded-lg bg-cyan-600 py-2 font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
 				>
-					{$isLoading ? 'Signing In...' : 'Sign In'}
+					{$isLoading ? $t.login_submitting : $t.login_submit}
 				</button>
 			</form>
 
 			<p class="mt-6 text-center text-sm text-gray-600">
-				Don't have an account?
+				{$t.login_noAccount}
 				<button
 					on:click={goToRegister}
 					class="font-medium text-cyan-600 underline hover:text-cyan-700"
 				>
-					Register here
+					{$t.login_registerLink}
 				</button>
 			</p>
 		</div>

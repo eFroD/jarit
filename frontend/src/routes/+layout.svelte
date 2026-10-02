@@ -7,6 +7,7 @@
 	import { resolve } from '$app/paths';
 	import Navigation from '$lib/components/Navigation.svelte';
 	import { api } from '$lib/api';
+	import { t } from '$lib/i18n';
 
 	let initialized = false;
 	onMount(async () => {
@@ -38,8 +39,8 @@
 </script>
 
 <svelte:head>
-	<title>JarIt - Extract recipes to Mealie</title>
-	<meta name="description" content="Extract recipes from videos to your Mealie instance using AI" />
+	<title>{$t.app_title}</title>
+	<meta name="description" content={$t.app_description} />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 </svelte:head>
 

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { api } from '$lib/api';
 	import { authToken } from '$lib/store';
+	import { errorMessage, t } from '$lib/i18n';
 	import type { User } from '$lib/types';
 
 	let users: User[] = [];
@@ -40,14 +42,9 @@
 		error = '';
 
 		try {
-			const res = await fetch(`${import.meta.env.VITE_API_BASE}/admin/users`, {
-				headers: { Authorization: `Bearer ${$authToken}` }
-			});
-
-			if (!res.ok) throw new Error('Failed to load users');
-			users = await res.json();
+			users = await api.listUsers();
 		} catch (e) {
-			error = e instanceof Error ? e.message : String(e);
+			error = errorMessage(e, $t);
 		} finally {
 			loading = false;
 		}
@@ -55,55 +52,35 @@
 
 	async function createUser() {
 		if (!newUser.email || !newUser.username || !newUser.password) {
-			error = 'All fields required';
+			error = $t.admin_allFieldsRequired;
 			return;
 		}
 
 		try {
-			const res = await fetch(`${import.meta.env.VITE_API_BASE}/admin/users`, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${$authToken}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify(newUser)
-			});
-
-			if (!res.ok) {
-				const err = await res.json();
-				throw new Error(err.detail || 'Failed to create user');
-			}
-
-			const created = await res.json();
+			const created = await api.createUser(newUser);
 			users = [created, ...users];
 
 			// Reset form
 			newUser = { email: '', username: '', password: '', role: 'USER' };
 			showCreateModal = false;
-			success = `User "${created.username}" created!`;
+			success = $t.admin_created({ name: created.username });
 
 			setTimeout(() => (success = ''), 3000);
 		} catch (e) {
-			error = e instanceof Error ? e.message : String(e);
+			error = errorMessage(e, $t);
 		}
 	}
 
 	async function deleteUser(id: number, username: string) {
-		if (!confirm(`Delete "${username}"?`)) return;
+		if (!confirm($t.admin_confirmDelete({ name: username }))) return;
 
 		try {
-			const res = await fetch(`${import.meta.env.VITE_API_BASE}/admin/users/${id}`, {
-				method: 'DELETE',
-				headers: { Authorization: `Bearer ${$authToken}` }
-			});
-
-			if (!res.ok) throw new Error('Failed to delete');
-
+			await api.deleteUser(id);
 			users = users.filter((u) => u.id !== id);
-			success = `User "${username}" deleted`;
+			success = $t.admin_deleted({ name: username });
 			setTimeout(() => (success = ''), 3000);
 		} catch (e) {
-			error = e instanceof Error ? e.message : String(e);
+			error = errorMessage(e, $t);
 		}
 	}
 
@@ -114,23 +91,25 @@
 	<!-- Header -->
 	<div class="panel-header">
 		<div>
-			<h1>🛡️ Admin Dashboard</h1>
-			<p class="subtitle">Manage users & permissions</p>
+			<h1>{$t.admin_title}</h1>
+			<p class="subtitle">{$t.admin_subtitle}</p>
 		</div>
-		<button class="btn-primary" on:click={() => (showCreateModal = true)}> ➕ New User </button>
+		<button class="btn-primary" on:click={() => (showCreateModal = true)}>
+			{$t.admin_newUser}
+		</button>
 	</div>
 
 	<!-- Stats -->
 	<div class="stats-grid">
 		<div class="stat-card">
 			<div class="stat-number">{users.length}</div>
-			<div>Total Users</div>
+			<div>{$t.admin_totalUsers}</div>
 		</div>
 		<div class="stat-card">
 			<div class="stat-number admin-count">
 				{users.filter((u) => u.role === 'ADMIN').length}
 			</div>
-			<div>Admins</div>
+			<div>{$t.admin_admins}</div>
 		</div>
 	</div>
 
@@ -144,17 +123,23 @@
 
 	<!-- Search -->
 	<div class="search-bar">
-		<input type="text" placeholder="Search users..." bind:value={search} class="search-input" />
-		<button class="btn-secondary" on:click={loadUsers} disabled={loading}>
+		<input type="text" placeholder={$t.admin_search} bind:value={search} class="search-input" />
+		<button
+			class="btn-secondary"
+			on:click={loadUsers}
+			disabled={loading}
+			aria-label={$t.admin_refresh}
+			title={$t.admin_refresh}
+		>
 			{loading ? '⟳' : '🔄'}
 		</button>
 	</div>
 
 	<!-- Users Table -->
 	{#if loading}
-		<div class="loading">Loading users...</div>
+		<div class="loading">{$t.admin_loadingUsers}</div>
 	{:else if filteredUsers.length === 0}
-		<div class="empty">No users found</div>
+		<div class="empty">{$t.admin_noUsers}</div>
 	{:else}
 		<div class="users-table">
 			{#each filteredUsers as user (user.id)}
@@ -165,12 +150,12 @@
 					</div>
 					<div class="user-role">
 						<span class="role-badge {user.role.toLowerCase()}">
-							{user.role.toUpperCase()}
+							{user.role === 'ADMIN' ? $t.admin_role_ADMIN : $t.admin_role_USER}
 						</span>
 					</div>
 					<div class="user-actions">
 						<button class="btn-danger" on:click={() => deleteUser(user.id, user.username)}>
-							Delete
+							{$t.common_delete}
 						</button>
 					</div>
 				</div>
@@ -183,21 +168,26 @@
 {#if showCreateModal}
 	<div class="modal-overlay" on:click={() => (showCreateModal = false)}>
 		<div class="modal" on:click|stopPropagation>
-			<h2>Create New User</h2>
+			<h2>{$t.admin_createTitle}</h2>
 			<form on:submit|preventDefault={createUser}>
-				<input bind:value={newUser.username} placeholder="Username" required />
-				<input bind:value={newUser.email} type="email" placeholder="Email" required />
-				<input bind:value={newUser.password} type="password" placeholder="Password" required />
+				<input bind:value={newUser.username} placeholder={$t.admin_username} required />
+				<input bind:value={newUser.email} type="email" placeholder={$t.admin_email} required />
+				<input
+					bind:value={newUser.password}
+					type="password"
+					placeholder={$t.admin_password}
+					required
+				/>
 				<select bind:value={newUser.role}>
-					<option value="USER">User</option>
-					<option value="ADMIN">Admin</option>
+					<option value="USER">{$t.admin_role_USER}</option>
+					<option value="ADMIN">{$t.admin_role_ADMIN}</option>
 				</select>
 				<div class="modal-actions">
 					<button type="button" class="btn-secondary" on:click={() => (showCreateModal = false)}>
-						Cancel
+						{$t.common_cancel}
 					</button>
 					<button type="submit" class="btn-primary" disabled={loading}>
-						{loading ? 'Creating...' : 'Create User'}
+						{loading ? $t.admin_creating : $t.admin_create}
 					</button>
 				</div>
 			</form>
