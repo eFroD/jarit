@@ -2,6 +2,7 @@
 <script lang="ts">
 	import { user, authToken } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 
 	let mobileOpen = false;
@@ -13,12 +14,12 @@
 		user.set(null);
 		localStorage.removeItem('authToken');
 		localStorage.removeItem('user');
-		goto('/login');
+		goto(resolve('/login'));
 		mobileOpen = false;
 	}
 	onMount(() => {
-		const handleClickOutside = (e) => {
-			if (mobileOpen && !e.target.closest('nav')) {
+		const handleClickOutside = (e: MouseEvent) => {
+			if (mobileOpen && !(e.target as HTMLElement).closest('nav')) {
 				mobileOpen = false;
 			}
 		};
@@ -30,7 +31,10 @@
 <nav class="border-b border-gray-200 bg-white shadow-sm">
 	<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 		<div class="flex h-16 items-center justify-between">
-			<a href="/dashboard" class="flex items-center gap-2 text-xl font-bold text-cyan-600">
+			<a
+				href={resolve('/dashboard')}
+				class="flex items-center gap-2 text-xl font-bold text-cyan-600"
+			>
 				<img src="/logo_800.png" alt="JarIt" class="h-8 w-auto" />
 				<span class="hidden sm:inline">JarIt</span>
 			</a>
@@ -40,7 +44,7 @@
 					<span class="text-sm text-gray-700">Welcome, <strong>{$user.username}</strong></span>
 					{#if $user.role === 'ADMIN'}
 						<a
-							href="/admin"
+							href={resolve('/admin')}
 							class="rounded-lg bg-cyan-600 px-4 py-2 text-sm !text-white no-underline hover:bg-cyan-700"
 							>Admin Panel</a
 						>
@@ -76,7 +80,7 @@
 					>
 					{#if $user.role === 'ADMIN'}
 						<a
-							href="/admin"
+							href={resolve('/admin')}
 							on:click={toggleMobile}
 							class="block rounded-lg bg-cyan-600 px-4 py-2 text-sm !text-white no-underline hover:bg-cyan-700"
 							>Admin Panel</a

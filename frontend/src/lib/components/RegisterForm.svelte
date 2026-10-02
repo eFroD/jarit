@@ -3,6 +3,7 @@
 	import { api } from '$lib/api';
 	import { error, isLoading } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	let email = '';
 	let username = '';
@@ -41,7 +42,7 @@
 			error.set(null);
 
 			setTimeout(() => {
-				goto('/login');
+				goto(resolve('/login'));
 			}, 1500);
 		} catch (err) {
 			localError = err instanceof Error ? err.message : 'Registration failed';
@@ -52,7 +53,7 @@
 	}
 
 	function goToLogin() {
-		goto('/login');
+		goto(resolve('/login'));
 	}
 </script>
 

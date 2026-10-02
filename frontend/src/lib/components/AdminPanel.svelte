@@ -47,7 +47,7 @@
 			if (!res.ok) throw new Error('Failed to load users');
 			users = await res.json();
 		} catch (e) {
-			error = e.message;
+			error = e instanceof Error ? e.message : String(e);
 		} finally {
 			loading = false;
 		}
@@ -84,7 +84,7 @@
 
 			setTimeout(() => (success = ''), 3000);
 		} catch (e) {
-			error = e.message;
+			error = e instanceof Error ? e.message : String(e);
 		}
 	}
 
@@ -103,7 +103,7 @@
 			success = `User "${username}" deleted`;
 			setTimeout(() => (success = ''), 3000);
 		} catch (e) {
-			error = e.message;
+			error = e instanceof Error ? e.message : String(e);
 		}
 	}
 
@@ -128,7 +128,7 @@
 		</div>
 		<div class="stat-card">
 			<div class="stat-number admin-count">
-				{users.filter((u) => u.role === 'ADMIN' || u.role === 'admin').length}
+				{users.filter((u) => u.role === 'ADMIN').length}
 			</div>
 			<div>Admins</div>
 		</div>
@@ -157,7 +157,7 @@
 		<div class="empty">No users found</div>
 	{:else}
 		<div class="users-table">
-			{#each filteredUsers as user}
+			{#each filteredUsers as user (user.id)}
 				<div class="user-row">
 					<div class="user-info">
 						<div class="username">{user.username}</div>

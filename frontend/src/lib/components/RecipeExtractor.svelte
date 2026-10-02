@@ -3,6 +3,7 @@
 	import { api } from '$lib/api';
 	import { extractedRecipe, suggestedRecipe, error, isLoading } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	let videoUrl = '';
 	let targetLanguage = 'english';
@@ -32,7 +33,7 @@
 					error.set(`Warning: ${result.error_info.error}`);
 				}
 
-				goto('/recipe-preview');
+				goto(resolve('/recipe-preview'));
 			} else {
 				throw new Error('Failed to extract recipe. Please check the URL and try again.');
 			}

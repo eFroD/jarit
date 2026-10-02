@@ -3,6 +3,7 @@
 	import { api } from '$lib/api';
 	import { user, authToken, error, isLoading, apiKeys, mealieKey } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	let username = '';
 	let password = '';
@@ -29,7 +30,7 @@
 			mealieKey.set(keys.find((k) => k.service_name === 'mealie') || null);
 
 			error.set(null);
-			goto('/dashboard');
+			goto(resolve('/dashboard'));
 		} catch (err) {
 			localError = err instanceof Error ? err.message : 'Login failed';
 			error.set(localError);
@@ -39,7 +40,7 @@
 	}
 
 	function goToRegister() {
-		goto('/register');
+		goto(resolve('/register'));
 	}
 </script>
 

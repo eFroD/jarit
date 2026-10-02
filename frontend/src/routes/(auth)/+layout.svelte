@@ -2,10 +2,11 @@
 <script lang="ts">
 	import { authToken } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	// Redirect to dashboard if already authenticated
 	$: if ($authToken && typeof window !== 'undefined') {
-		goto('/dashboard');
+		goto(resolve('/dashboard'));
 	}
 </script>
 

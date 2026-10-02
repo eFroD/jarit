@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { authToken, user, apiKeys, mealieKey } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import Navigation from '$lib/components/Navigation.svelte';
 	import { api } from '$lib/api';
 
@@ -31,7 +32,7 @@
 		const path = window.location.pathname;
 
 		if (!path.includes('/login') && !path.includes('/register') && path !== '/') {
-			goto('/login');
+			goto(resolve('/login'));
 		}
 	}
 </script>

@@ -3,10 +3,11 @@
 	import RecipePreview from '$lib/components/RecipePreview.svelte';
 	import { authToken } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 
 	// Require authentication
 	$: if (!$authToken && typeof window !== 'undefined') {
-		goto('/login');
+		goto(resolve('/login'));
 	}
 </script>
 

@@ -18,9 +18,9 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api/v1'
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
 	const token = get(authToken);
 
-	const headers: HeadersInit = {
+	const headers: Record<string, string> = {
 		'Content-Type': 'application/json',
-		...options.headers
+		...(options.headers as Record<string, string> | undefined)
 	};
 
 	if (token) {
@@ -175,7 +175,7 @@ export const api = {
 	 * Verify Mealie user credentials
 	 * Used to test if Mealie API key is valid
 	 */
-	verifyMealieUser(): Promise<any> {
-		return request<any>('/integrations/verify-mealie-user');
+	verifyMealieUser(): Promise<{ valid: boolean }> {
+		return request<{ valid: boolean }>('/integrations/verify-mealie-user');
 	}
 };

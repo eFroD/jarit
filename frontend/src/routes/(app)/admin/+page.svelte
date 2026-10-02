@@ -2,16 +2,17 @@
 	import AdminPanel from '$lib/components/AdminPanel.svelte';
 	import { user } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 
 	onMount(() => {
 		if (!$user || $user.role !== 'ADMIN') {
-			goto('/dashboard');
+			goto(resolve('/dashboard'));
 		}
 	});
 
 	$: if ($user && $user.role !== 'ADMIN') {
-		goto('/dashboard');
+		goto(resolve('/dashboard'));
 	}
 </script>
 

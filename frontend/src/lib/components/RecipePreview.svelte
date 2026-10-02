@@ -3,6 +3,7 @@
 	import { api } from '$lib/api';
 	import { extractedRecipe, error, isLoading, mealieKey } from '$lib/store';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import type { Recipe } from '$lib/types';
 
 	let recipe: Recipe | null = null;
@@ -10,9 +11,9 @@
 
 	$: recipe = $extractedRecipe;
 
-	function editField(field: keyof Recipe, value: any) {
+	function editField(field: keyof Recipe, value: string) {
 		if (recipe) {
-			recipe[field] = value;
+			recipe = Object.assign(recipe, { [field]: value });
 			extractedRecipe.set(recipe);
 		}
 	}
@@ -87,7 +88,7 @@
 			setTimeout(() => {
 				extractedRecipe.set(null);
 				showSuccessMessage = false;
-				goto('/dashboard');
+				goto(resolve('/dashboard'));
 			}, 2000);
 		} catch (err) {
 			error.set(err instanceof Error ? err.message : 'Upload failed');
@@ -98,7 +99,7 @@
 
 	function handleCancel() {
 		extractedRecipe.set(null);
-		goto('/dashboard');
+		goto(resolve('/dashboard'));
 	}
 </script>
 
@@ -312,7 +313,11 @@
 					<h3 class="text-lg font-bold text-gray-900">Preview</h3>
 
 					{#if recipe.image}
-						<img src={recipe.image} alt={recipe.name} class="h-48 w-full rounded-lg object-cover" />
+						<img
+							src={Array.isArray(recipe.image) ? recipe.image[0] : recipe.image}
+							alt={recipe.name}
+							class="h-48 w-full rounded-lg object-cover"
+						/>
 					{/if}
 
 					<div class="space-y-3 text-sm">
