@@ -25,3 +25,8 @@ coverage.xml
 frontend/node_modules
 frontend/dist
 frontend/.svelte-kit
+
+# Secrets
+.env
+.env.*
+!.env_example
