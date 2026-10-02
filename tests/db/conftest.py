@@ -20,19 +20,23 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 
 import main  # noqa: E402
+from jarit.api.v1.endpoints.extraction_jobs import get_runner  # noqa: E402
 from jarit.api.v1.endpoints.users import get_current_user  # noqa: E402
-from jarit.db.database import Base, SessionLocal, engine  # noqa: E402
+from jarit.db.database import SessionLocal, engine  # noqa: E402
+from jarit.db.migrate import run_migrations  # noqa: E402
 from jarit.db.models.users import User, UserRole  # noqa: E402
 
 
 def truncate_tables(session):
-    session.execute(text("TRUNCATE users, api_keys RESTART IDENTITY CASCADE"))
+    session.execute(
+        text("TRUNCATE users, api_keys, extraction_jobs RESTART IDENTITY CASCADE")
+    )
     session.commit()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def schema():
-    Base.metadata.create_all(bind=engine)
+    run_migrations(engine)
     with SessionLocal() as session:
         truncate_tables(session)
 
@@ -48,13 +52,12 @@ def db():
         session.close()
 
 
-@pytest.fixture
-def user(db):
+def make_user(db, name, role=UserRole.USER):
     u = User(
-        email="tester@example.com",
-        username="tester",
+        email=f"{name}@example.com",
+        username=name,
         hashed_password="not-used",
-        role=UserRole.USER,
+        role=role,
     )
     db.add(u)
     db.commit()
@@ -63,8 +66,49 @@ def user(db):
 
 
 @pytest.fixture
-def client(user):
-    main.app.dependency_overrides[get_current_user] = lambda: user
+def user(db):
+    return make_user(db, "tester")
+
+
+@pytest.fixture
+def other_user(db):
+    return make_user(db, "other")
+
+
+@pytest.fixture
+def admin_user(db):
+    return make_user(db, "admin", UserRole.ADMIN)
+
+
+class FakeRunner:
+    """Records submitted job ids instead of running extractions."""
+
+    def __init__(self):
+        self.submitted = []
+
+    def submit(self, job_id):
+        self.submitted.append(job_id)
+
+
+@pytest.fixture
+def fake_runner():
+    return FakeRunner()
+
+
+@pytest.fixture
+def act_as():
+    """Switch the authenticated user of the test client."""
+
+    def switch(u):
+        main.app.dependency_overrides[get_current_user] = lambda: u
+
+    return switch
+
+
+@pytest.fixture
+def client(user, fake_runner, act_as):
+    act_as(user)
+    main.app.dependency_overrides[get_runner] = lambda: fake_runner
     try:
         yield TestClient(main.app)
     finally:

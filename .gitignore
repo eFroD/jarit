@@ -36,3 +36,7 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .svelte-kit
+# Test artifacts
+.coverage
+.coverage.*
+.pytest_cache/

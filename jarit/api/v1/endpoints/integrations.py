@@ -2,11 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 import httpx
-from jarit.models.output_models.recipe import Recipe
-from jarit.integrations.mealie_integration import (
-    push_recipe_to_mealie,
-    verify_mealie_user,
-)
+from jarit.integrations.mealie_integration import verify_mealie_user
 from jarit.api.v1.endpoints.users import get_current_user
 from jarit.db.models.api_keys import APIKey
 from jarit.integrations.credentials import SecretUnreadableError, reveal_secret
@@ -56,25 +52,6 @@ async def get_mealie_credentials(
         ) from None
 
     return {"endpoint": api_key_entry.base_url, "api_key": api_key}
-
-
-@router.post("/upload-mealie")
-async def upload_to_mealie(
-    recipe: Recipe, mealie_creds: dict = Depends(get_mealie_credentials)
-):
-    """Upload a recipe to Mealie."""
-    try:
-        response = await push_recipe_to_mealie(
-            recipe.model_dump(by_alias=True, mode="json"),
-            mealie_creds["endpoint"],
-            mealie_creds["api_key"],
-        )
-        return {"message": response}
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=f"Mealie error: {e.response.text}",
-        )
 
 
 @router.get("/verify-mealie-user")

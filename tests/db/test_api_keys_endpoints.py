@@ -7,16 +7,18 @@ from cryptography.fernet import Fernet
 from sqlalchemy import text
 
 from jarit.core.crypto import SecretCipher
+from jarit.jobs import repository
+from tests.factories import make_response
 
 API = "/api/v1"
 MEALIE = {"service_name": "mealie", "api_key": "plain-key-123", "base_url": "https://m"}
-RECIPE = {
-    "name": "Test",
-    "description": "Test recipe",
-    "recipeYield": "1",
-    "recipeIngredient": ["salt"],
-    "recipeInstructions": [{"@type": "HowToStep", "text": "Mix"}],
-}
+
+
+def completed_job(db, user):
+    job = repository.create_job(db, user.id, "https://example.com/v", "english")
+    repository.start_job(db, job.id)
+    repository.complete_job(db, job.id, make_response())
+    return job
 
 
 def stored_value(db):
@@ -84,7 +86,8 @@ def test_unreadable_secret_returns_409_and_app_keeps_working(client, db, user, c
     foreign = store_foreign_ciphertext(db, user)
     caplog.set_level(logging.WARNING)
 
-    upload = client.post(f"{API}/integrations/upload-mealie", json=RECIPE)
+    job = completed_job(db, user)
+    upload = client.post(f"{API}/extraction-jobs/{job.id}/upload-mealie")
     assert upload.status_code == 409
     assert "enter your Mealie API key again" in upload.json()["detail"]
     assert "enc:v1:" not in upload.text

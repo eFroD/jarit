@@ -18,6 +18,7 @@ dependencies = [
     "yt-dlp>=2025.9.23",
     "passlib[argon2]>=1.7.4",
     "cryptography>=46.0.3",
+    "alembic>=1.20.0",
 ]
 
 [dependency-groups]

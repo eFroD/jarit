@@ -1,9 +1,13 @@
 import os
 
 from cryptography.fernet import Fernet
+from pydantic_ai import models
 
 # Every test run uses a throwaway key, so no real key ever lives in the repo.
 os.environ.setdefault("JARIT_ENCRYPTION_KEY", Fernet.generate_key().decode())
+
+# No test may ever reach a real LLM provider.
+models.ALLOW_MODEL_REQUESTS = False
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 # tests/db truncates tables, so only ever run it against a dedicated *_test database.
