@@ -29,6 +29,27 @@ def test_create_and_read_own_jobs_only(db, user, other_user):
     assert [j.id for j in repo.list_owned_jobs(db, user.id)] == [second.id, first.id]
 
 
+def backdate(db, job):
+    """Moves created_at and started_at one hour back and returns the old values."""
+    db.execute(
+        text(
+            "UPDATE extraction_jobs SET created_at = now() - interval '1 hour', "
+            "started_at = now() - interval '1 hour' WHERE id = :id"
+        ),
+        {"id": job.id},
+    )
+    db.commit()
+    db.expire_all()
+    stored = repo.get_job(db, job.id)
+    return stored.created_at, stored.started_at
+
+
+def test_new_job_has_started_at(db, user):
+    job = new_job(db, user)
+    assert job.started_at is not None
+    assert job.started_at == job.created_at
+
+
 def test_happy_path_transitions(db, user):
     job = new_job(db, user)
     assert repo.start_job(db, job.id)
@@ -106,6 +127,7 @@ def test_retry_only_from_failed_and_clears_state(db, user):
     job = new_job(db, user)
     assert not repo.retry_job(db, job.id)
     repo.fail_job(db, job.id, FailureReason.LLM_ERROR)
+    created_at, started_at = backdate(db, job)
     assert repo.retry_job(db, job.id)
     assert not repo.retry_job(db, job.id)
     db.expire_all()
@@ -113,6 +135,8 @@ def test_retry_only_from_failed_and_clears_state(db, user):
     assert stored.status == JobStatus.QUEUED.value
     assert stored.failure_reason is None
     assert stored.result is None and stored.title is None
+    assert stored.started_at > started_at
+    assert stored.created_at == created_at
 
 
 def completed_job(db, user, name="Soup"):

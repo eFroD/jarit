@@ -10,6 +10,8 @@ from jarit.db.migrate import run_migrations
 from jarit.db.models.api_keys import APIKey
 from jarit.db.models.users import User
 
+HEAD = "0003_job_started_at"
+
 
 @pytest.fixture
 def schema_engine():
@@ -42,7 +44,7 @@ def test_empty_database_is_migrated_to_head(schema_engine):
 
     tables = set(inspect(schema_engine).get_table_names())
     assert {"users", "api_keys", "extraction_jobs", "alembic_version"} <= tables
-    assert revision(schema_engine) == "0002_extraction_jobs"
+    assert revision(schema_engine) == HEAD
 
 
 def test_legacy_create_all_database_keeps_its_data(schema_engine, caplog):
@@ -65,7 +67,7 @@ def test_legacy_create_all_database_keeps_its_data(schema_engine, caplog):
     run_migrations(schema_engine)
 
     assert "stamping baseline" in caplog.text
-    assert revision(schema_engine) == "0002_extraction_jobs"
+    assert revision(schema_engine) == HEAD
     with schema_engine.connect() as conn:
         assert conn.execute(text("SELECT username FROM users")).scalar_one() == "alice"
         assert (
@@ -80,7 +82,7 @@ def test_legacy_create_all_database_keeps_its_data(schema_engine, caplog):
 def test_second_run_is_a_no_op(schema_engine):
     run_migrations(schema_engine)
     run_migrations(schema_engine)
-    assert revision(schema_engine) == "0002_extraction_jobs"
+    assert revision(schema_engine) == HEAD
 
 
 def test_downgrade_to_base_and_back(schema_engine):
@@ -94,4 +96,41 @@ def test_downgrade_to_base_and_back(schema_engine):
     assert set(inspect(schema_engine).get_table_names()) == {"alembic_version"}
 
     run_migrations(schema_engine)
-    assert revision(schema_engine) == "0002_extraction_jobs"
+    assert revision(schema_engine) == HEAD
+
+
+def test_upgrade_from_0002_backfills_started_at(schema_engine):
+    from alembic import command
+
+    from jarit.db.migrate import _config
+
+    with schema_engine.begin() as conn:
+        command.upgrade(_config(conn), "0002_extraction_jobs")
+        conn.execute(
+            text(
+                "INSERT INTO users (email, username, hashed_password, role, is_active) "
+                "VALUES ('a@example.com', 'alice', 'x', 'USER', true)"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO extraction_jobs "
+                "(id, user_id, video_url, target_language, created_at) "
+                "VALUES (:id, 1, 'https://example.com/v', 'english', "
+                "'2026-01-01T12:00:00+00:00')"
+            ),
+            {"id": uuid.uuid4()},
+        )
+
+    run_migrations(schema_engine)
+
+    assert revision(schema_engine) == HEAD
+    with schema_engine.connect() as conn:
+        created_at, started_at = conn.execute(
+            text("SELECT created_at, started_at FROM extraction_jobs")
+        ).one()
+    assert started_at == created_at
+    columns = {
+        c["name"]: c for c in inspect(schema_engine).get_columns("extraction_jobs")
+    }
+    assert columns["started_at"]["nullable"] is False

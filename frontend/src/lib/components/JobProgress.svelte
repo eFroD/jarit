@@ -81,8 +81,8 @@
 		return order < reached ? 'done' : 'pending';
 	}
 
-	function elapsed(createdAt: string, until: number): string {
-		const seconds = Math.max(0, Math.round((until - new Date(createdAt).getTime()) / 1000));
+	function elapsed(since: string, until: number): string {
+		const seconds = Math.max(0, Math.round((until - new Date(since).getTime()) / 1000));
 		const minutes = Math.floor(seconds / 60);
 		return minutes > 0 ? `${minutes} min ${seconds % 60} s` : `${seconds} s`;
 	}
@@ -108,7 +108,7 @@
 			<p class="mb-1 font-mono text-sm break-all text-gray-600">{job.video_url}</p>
 			{#if job.status !== 'FAILED' && job.status !== 'COMPLETED'}
 				<p class="mb-6 text-sm text-gray-500">
-					Running for {elapsed(job.created_at, now)} · you can leave this page and come back later
+					Running for {elapsed(job.started_at, now)} · you can leave this page and come back later
 				</p>
 			{:else}
 				<div class="mb-6"></div>

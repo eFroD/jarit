@@ -47,6 +47,10 @@ class ExtractionJob(Base):
     created_at = Column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
+    # Start of the current attempt; reset by a retry, unlike created_at.
+    started_at = Column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
+    )
     updated_at = Column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

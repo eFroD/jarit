@@ -128,6 +128,7 @@ def retry_job(db: Session, job_id: UUID) -> bool:
         failure_reason=None,
         result=None,
         title=None,
+        started_at=func.now(),
     )
 
 

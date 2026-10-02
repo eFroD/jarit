@@ -89,6 +89,8 @@ export interface ExtractionJobSummary {
 	status: JobStatus;
 	failure_reason: FailureReason | null;
 	created_at: string;
+	/** Start of the current attempt; reset by a retry, unlike created_at. */
+	started_at: string;
 	updated_at: string;
 	uploaded_to_mealie_at: string | null;
 }

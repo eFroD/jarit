@@ -70,6 +70,7 @@ class ExtractionJobSummary(BaseModel):
     status: JobStatus
     failure_reason: FailureReason | None
     created_at: datetime
+    started_at: datetime
     updated_at: datetime
     uploaded_to_mealie_at: datetime | None
 

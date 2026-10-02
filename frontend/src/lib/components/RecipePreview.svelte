@@ -1,7 +1,7 @@
 <!-- RecipePreview.svelte -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { api } from '$lib/api';
+	import { api, ApiError } from '$lib/api';
 	import {
 		currentJobId,
 		extractedRecipe,
@@ -19,10 +19,15 @@
 	let recipe: Recipe | null = null;
 	let job: ExtractionJob | null = null;
 	let showSuccessMessage = false;
-	let dirty = false;
 	let saving = false;
+	let loadError = '';
 
-	$: recipe = $extractedRecipe;
+	// Only the job named in the URL is editable; until it is loaded, nothing is shown.
+	$: recipe = job?.id === jobId && $currentJobId === jobId ? $extractedRecipe : null;
+	// Unsaved is derived from the data: edits kept in the store across navigation
+	// still count as unsaved when the job is opened again.
+	$: savedJson = job?.result?.recipe ? JSON.stringify(job.result.recipe) : null;
+	$: unsaved = !!recipe && savedJson !== null && JSON.stringify(recipe) !== savedJson;
 
 	onMount(async () => {
 		try {
@@ -34,19 +39,23 @@
 			job = loaded;
 			// Keep unsaved edits if this job is already in the editor (e.g. back navigation).
 			if ($currentJobId !== jobId || !$extractedRecipe) {
-				extractedRecipe.set(loaded.result.recipe);
+				// A copy, so edits never change the saved version they are compared with.
+				extractedRecipe.set(structuredClone(loaded.result.recipe));
 				suggestedRecipe.set(loaded.result.suggested_version);
 				currentJobId.set(jobId);
-				dirty = false;
 			}
-		} catch {
-			// request() already put the message into the error store
+		} catch (err) {
+			loadError =
+				err instanceof ApiError && err.status === 404
+					? 'This extraction does not exist.'
+					: err instanceof Error
+						? err.message
+						: 'Could not load this extraction.';
 		}
 	});
 
 	function changed(updated: Recipe) {
-		extractedRecipe.set(updated);
-		dirty = true;
+		extractedRecipe.set({ ...updated });
 	}
 
 	function editField(field: keyof Recipe, value: string) {
@@ -108,11 +117,10 @@
 	}
 
 	async function save(): Promise<boolean> {
-		if (!recipe || !jobId) return false;
+		if (!recipe || job?.id !== jobId) return false;
 		saving = true;
 		try {
 			job = await api.saveJobRecipe(jobId, recipe);
-			dirty = false;
 			return true;
 		} catch {
 			return false;
@@ -122,7 +130,7 @@
 	}
 
 	async function handleUpload() {
-		if (!recipe || !jobId) return;
+		if (!recipe || job?.id !== jobId) return;
 
 		if (!$mealieKey) {
 			error.set('Please configure Mealie API key first');
@@ -142,7 +150,7 @@
 
 		try {
 			// The server uploads the stored version, so unsaved edits go first.
-			if (dirty && !(await save())) return;
+			if (unsaved && !(await save())) return;
 			const result = await api.uploadJobToMealie(jobId);
 			if (job) job = { ...job, uploaded_to_mealie_at: result.uploaded_to_mealie_at };
 			showSuccessMessage = true;
@@ -421,8 +429,8 @@
 					</div>
 
 					<div class="space-y-2 border-t pt-4">
-						<p class="text-xs" class:text-gray-500={!dirty} class:text-amber-600={dirty}>
-							{dirty ? 'Unsaved changes' : 'All changes saved'}
+						<p class="text-xs" class:text-gray-500={!unsaved} class:text-amber-600={unsaved}>
+							{unsaved ? 'Unsaved changes' : 'All changes saved'}
 							{#if job?.uploaded_to_mealie_at}
 								· In Mealie since {new Date(job.uploaded_to_mealie_at).toLocaleDateString()}
 							{/if}
@@ -430,7 +438,7 @@
 						<button
 							on:click={save}
 							type="button"
-							disabled={!dirty || saving || $isLoading}
+							disabled={!unsaved || saving || $isLoading}
 							class="w-full rounded-lg bg-cyan-600 py-2 font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{saving ? 'Saving...' : 'Save changes'}
@@ -455,8 +463,15 @@
 			</div>
 		</div>
 	</div>
+{:else if loadError}
+	<div class="mx-auto max-w-xl rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+		<p class="mb-3 text-red-800">{loadError}</p>
+		<a href={resolve('/history')} class="font-medium text-cyan-700 hover:underline">
+			← Back to history
+		</a>
+	</div>
 {:else}
 	<div class="py-12 text-center">
-		<p class="text-gray-500">No recipe to preview</p>
+		<p class="text-gray-500">Loading…</p>
 	</div>
 {/if}

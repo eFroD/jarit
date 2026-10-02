@@ -3,10 +3,12 @@
 import asyncio
 import logging
 import uuid
+from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+from sqlalchemy import text
 
 from jarit.integrations.credentials import set_secret
 from jarit.db.models.api_keys import APIKey
@@ -96,6 +98,7 @@ def test_get_completed_job_contains_result(client, db, user):
     assert body["result"]["recipe"]["name"] == "Soup"
     assert body["result"]["recipe"]["@type"] == "Recipe"
     assert body["result"]["suggested_version"]["name"] == "Soup v2"
+    assert body["started_at"] == body["created_at"]
 
 
 @pytest.mark.parametrize("job_id", [str(uuid.uuid4()), "not-a-uuid"])
@@ -167,6 +170,7 @@ def test_list_returns_own_jobs_newest_first_without_result(
     assert body[1]["title"] == "First"
     assert body[0]["title"] is None
     assert all("result" not in j for j in body)
+    assert all(j["started_at"] for j in body)
 
 
 # --- US3: retry and no leaks -------------------------------------------------
@@ -174,6 +178,17 @@ def test_list_returns_own_jobs_newest_first_without_result(
 
 def test_retry_failed_job(client, db, user, fake_runner):
     job = failed_job(db, user)
+    db.execute(
+        text(
+            "UPDATE extraction_jobs SET created_at = now() - interval '1 hour', "
+            "started_at = now() - interval '1 hour' WHERE id = :id"
+        ),
+        {"id": job.id},
+    )
+    db.commit()
+    db.expire_all()
+    old = repository.get_job(db, job.id)
+    old_created, old_started = old.created_at, old.started_at
 
     response = client.post(f"{JOBS}/{job.id}/retry")
 
@@ -181,6 +196,8 @@ def test_retry_failed_job(client, db, user, fake_runner):
     body = response.json()
     assert body["status"] == "QUEUED"
     assert body["failure_reason"] is None
+    assert datetime.fromisoformat(body["started_at"]) > old_started
+    assert datetime.fromisoformat(body["created_at"]) == old_created
     assert fake_runner.submitted == [job.id]
 
 
