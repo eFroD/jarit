@@ -2144,6 +2144,7 @@ dependencies = [
     { name = "python-jose", extra = ["cryptography"] },
     { name = "python-multipart" },
     { name = "sqlalchemy" },
+    { name = "uvicorn" },
     { name = "yt-dlp" },
 ]
 
@@ -2154,7 +2155,6 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-env" },
     { name = "ruff" },
-    { name = "uvicorn" },
 ]
 eval = [
     { name = "pydantic-evals", extra = ["logfire"] },
@@ -2177,6 +2177,7 @@ requires-dist = [
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "sqlalchemy", specifier = ">=2.0.44" },
+    { name = "uvicorn", specifier = ">=0.37.0" },
     { name = "yt-dlp", specifier = ">=2025.9.23" },
 ]
 
@@ -2187,7 +2188,6 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.0.0" },
     { name = "pytest-env", specifier = ">=1.1.5" },
     { name = "ruff", specifier = ">=0.13.3" },
-    { name = "uvicorn", specifier = ">=0.37.0" },
 ]
 eval = [
     { name = "pydantic-evals", extras = ["logfire"], specifier = ">=1.0.11" },
