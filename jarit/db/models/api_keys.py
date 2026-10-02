@@ -11,7 +11,8 @@ class APIKey(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     service_name = Column(String, nullable=False)
-    api_key = Column(String, nullable=False)
+    # Stores "enc:v1:<token>"; use jarit.integrations.credentials to read or write.
+    api_key_ciphertext = Column("api_key", String, nullable=False)
     base_url = Column(String, nullable=True)
     is_active = Column(Boolean, server_default="TRUE", nullable=False)
     created_at = Column(

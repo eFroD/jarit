@@ -36,6 +36,7 @@ services:
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       - SECRET_KEY=${SECRET_KEY}
+      - JARIT_ENCRYPTION_KEY=${JARIT_ENCRYPTION_KEY}
       - ALGORITHM=${ALGORITHM:-HS256}
     command: uv run uvicorn main:app --host 0.0.0.0 --port 8000 --env-file /app/.env
     depends_on:

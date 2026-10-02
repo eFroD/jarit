@@ -19,7 +19,6 @@ def get_user_by_username(db: Session, username: str):
 
 def create_user(db: Session, user: UserCreate, current_user: User | None = None):
     count = user_count(db)
-    print(f"User count: {count}")
     if count == 0:
         db_role = UserRole.ADMIN
 
@@ -29,7 +28,6 @@ def create_user(db: Session, user: UserCreate, current_user: User | None = None)
         else:
             db_role = UserRole.USER
 
-
     elif current_user and current_user.role == UserRole.ADMIN:
         db_role = UserRole(user.role)
 
@@ -37,8 +35,8 @@ def create_user(db: Session, user: UserCreate, current_user: User | None = None)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Registration is disabled. Admin privileges required to create new users.",
-            )
-    
+        )
+
     # Check if user exists
     if get_user_by_email(db, user.email):
         raise HTTPException(
