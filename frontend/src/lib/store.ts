@@ -10,7 +10,7 @@ import type { User, APIKey, Recipe } from './types';
  * Persisted to localStorage
  */
 export const authToken = writable<string | null>(
-  typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+	typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
 );
 
 /**
@@ -66,23 +66,23 @@ export const isMealieConfigured = derived(mealieKey, ($mealieKey) => !!$mealieKe
  * Persist authToken to localStorage
  */
 authToken.subscribe((token) => {
-  if (typeof window !== 'undefined') {
-    if (token) {
-      localStorage.setItem('authToken', token);
-    } else {
-      localStorage.removeItem('authToken');
-    }
-  }
+	if (typeof window !== 'undefined') {
+		if (token) {
+			localStorage.setItem('authToken', token);
+		} else {
+			localStorage.removeItem('authToken');
+		}
+	}
 });
 
 /**
  * Clear user data on logout
  */
 export function logout() {
-  authToken.set(null);
-  user.set(null);
-  apiKeys.set([]);
-  mealieKey.set(null);
-  extractedRecipe.set(null);
-  error.set(null);
+	authToken.set(null);
+	user.set(null);
+	apiKeys.set([]);
+	mealieKey.set(null);
+	extractedRecipe.set(null);
+	error.set(null);
 }
