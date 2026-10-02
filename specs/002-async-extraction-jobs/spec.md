@@ -67,6 +67,7 @@ Schlägt eine Extraktion fehl, sieht der Nutzer eine verständliche Ursache, etw
 3. **Given** ein fehlgeschlagener Job, **When** der Nutzer dessen Zustand abruft, **Then** enthält die Antwort keine Stacktraces, internen Fehlermeldungen von Drittdiensten, Pfade oder Zugangsdaten.
 4. **Given** ein fehlgeschlagener Job, **When** der Nutzer ihn erneut startet, **Then** läuft die Extraktion mit derselben URL und Zielsprache erneut durch die Stufen, und der Nutzer verfolgt sie wie einen neuen Job.
 5. **Given** ein laufender, wartender oder abgeschlossener Job, **When** der Nutzer versucht, ihn erneut zu starten, **Then** wird das abgelehnt.
+6. **Given** ein Job, der vor längerer Zeit eingereicht wurde und fehlgeschlagen ist, **When** der Nutzer ihn erneut startet, **Then** zählt die angezeigte Laufzeit ab dem erneuten Start bei null, nicht ab der ursprünglichen Einreichung.
 
 ---
 
@@ -137,6 +138,8 @@ Ein Nutzer öffnet ein abgeschlossenes Rezept aus seiner Historie, bearbeitet es
 6. **Given** ein bereits hochgeladenes Rezept, **When** der Nutzer es erneut hochladen will, **Then** weist die Oberfläche darauf hin, dass es schon hochgeladen wurde, erlaubt den Upload aber.
 7. **Given** ein Job in einem Endzustand, **When** der Nutzer ihn löscht, **Then** ist er dauerhaft entfernt, erscheint nicht mehr in der Historie und ist über seine Kennung nicht mehr abrufbar.
 8. **Given** ein wartender oder laufender Job, **When** der Nutzer ihn löschen will, **Then** wird das abgelehnt, mit dem Hinweis, das Ende abzuwarten.
+9. **Given** der Nutzer hat ein Rezept im Editor geändert, aber nicht gespeichert, und den Editor verlassen, **When** er denselben Job erneut öffnet und die ungespeicherten Änderungen noch angezeigt werden, **Then** kennzeichnet die Oberfläche sie als ungespeichert, und ein Upload nach Mealie lädt genau die angezeigte Fassung hoch (sie wird vorher gespeichert).
+10. **Given** im Editor war zuvor das Rezept eines anderen Jobs geöffnet, **When** der Nutzer einen Job öffnet, dessen Rezept nicht geladen werden kann (Verbindungsfehler, gelöscht, fremd), **Then** zeigt der Editor nicht das Rezept des anderen Jobs an, sondern einen Fehlerhinweis, und es lässt sich nichts zu diesem Job speichern oder hochladen.
 
 ---
 
@@ -158,6 +161,9 @@ Ein Nutzer öffnet ein abgeschlossenes Rezept aus seiner Historie, bearbeitet es
 - **Bearbeitung in zwei Tabs**: Es gilt die zuletzt gespeicherte Fassung; eine Konflikterkennung ist nicht Teil dieses Features.
 - **Löschen während eines Uploads oder in einem anderen Tab**: Ein Upload oder Speichern zu einem inzwischen gelöschten Job verhält sich wie bei einem nicht existierenden Job.
 - **Gelöschter Job in Mealie**: Das Löschen aus der Historie entfernt das Rezept nicht aus Mealie.
+- **Editor verlassen mit ungespeicherten Änderungen**: Werden ungespeicherte Änderungen beim erneuten Öffnen desselben Jobs wieder angezeigt, gelten sie weiterhin als ungespeichert. Die Anzeige „alle Änderungen gespeichert“ darf nie erscheinen, solange die angezeigte Fassung von der gespeicherten abweicht.
+- **Rezept eines Jobs lässt sich nicht laden**: Der Editor zeigt nie das Rezept eines anderen Jobs unter der Kennung des geöffneten Jobs an; auch nicht kurzzeitig, solange der geöffnete Job noch lädt, in einer Form, die sich bearbeiten oder speichern lässt.
+- **Laufzeitanzeige nach erneutem Start**: Die Laufzeit in der Fortschrittsanzeige bezieht sich auf den letzten Start des Jobs. Die Historie zeigt weiterhin den ursprünglichen Einreichungszeitpunkt.
 
 ## Requirements *(mandatory)*
 
@@ -168,7 +174,7 @@ Ein Nutzer öffnet ein abgeschlossenes Rezept aus seiner Historie, bearbeitet es
 - **FR-001**: Das System MUSS beim Einreichen einer Video-URL samt Zielsprache durch einen angemeldeten Nutzer sofort einen Job anlegen und dessen Kennung zurückgeben, ohne auf das Ende der Extraktion zu warten.
 - **FR-002**: Das System MUSS die Extraktion im Hintergrund innerhalb des bestehenden Anwendungsprozesses ausführen. Es DARF keine zusätzliche Infrastruktur erfordern (kein zusätzlicher Dienst, Broker, Zwischenspeicher oder Worker-Container).
 - **FR-003**: Ein Job MUSS genau einem Nutzer gehören. Nutzer, auch Administratoren, DÜRFEN nur ihre eigenen Jobs sehen, abfragen, bearbeiten, hochladen, erneut starten und löschen. Jeder Zugriff auf einen fremden Job MUSS sich genauso verhalten wie der Zugriff auf einen nicht existierenden Job.
-- **FR-004**: Der aktuelle Zustand eines Jobs MUSS jederzeit für seinen Besitzer abrufbar sein, einschließlich Stufe, Einreichungszeitpunkt, Zeitpunkt der letzten Zustandsänderung und, falls vorhanden, Ergebnis oder Fehlerursache.
+- **FR-004**: Der aktuelle Zustand eines Jobs MUSS jederzeit für seinen Besitzer abrufbar sein, einschließlich Stufe, Einreichungszeitpunkt, Zeitpunkt des letzten Starts, Zeitpunkt der letzten Zustandsänderung und, falls vorhanden, Ergebnis oder Fehlerursache.
 - **FR-005**: Das Ergebnis eines abgeschlossenen Jobs MUSS dauerhaft gespeichert werden und denselben Inhalt haben wie eine bisherige synchrone Extraktion (Rezept und ggf. Vorschlag für fehlende Felder).
 
 **Stufen**
@@ -179,6 +185,7 @@ Ein Nutzer öffnet ein abgeschlossenes Rezept aus seiner Historie, bearbeitet es
 - **FR-009**: Die Oberfläche MUSS nach dem Absenden den Fortschritt des Jobs mit der aktuellen Stufe anzeigen, durch regelmäßiges Abfragen selbstständig aktualisieren und einen Stufenwechsel spätestens nach 5 Sekunden anzeigen.
 - **FR-009a**: Ist der verfolgte Job abgeschlossen, MUSS die Oberfläche wie bisher automatisch den Rezept-Editor mit dem extrahierten Rezept und, falls vorhanden, der vorgeschlagenen Version öffnen.
 - **FR-009b**: Verlässt der Nutzer die Seite und kehrt später zurück, MUSS die Oberfläche den Job wieder auffinden und dessen aktuellen Fortschritt bzw. das Ergebnis anzeigen; weder Job noch Ergebnis gehen verloren.
+- **FR-009c**: Die Fortschrittsanzeige MUSS die Laufzeit ab dem letzten Start des Jobs anzeigen (Einreichen bzw. erneuter Start nach FR-013), nicht ab der ursprünglichen Einreichung.
 
 **Fehler**
 
@@ -188,7 +195,7 @@ Ein Nutzer öffnet ein abgeschlossenes Rezept aus seiner Historie, bearbeitet es
 
 **Erneut starten**
 
-- **FR-013**: Der Besitzer MUSS einen fehlgeschlagenen Job erneut starten können. Dabei werden dieselbe URL und Zielsprache verwendet, der Job kehrt zu „wartend“ zurück, und Fehlerursache sowie altes Ergebnis werden zurückgesetzt.
+- **FR-013**: Der Besitzer MUSS einen fehlgeschlagenen Job erneut starten können. Dabei werden dieselbe URL und Zielsprache verwendet, der Job kehrt zu „wartend“ zurück, Fehlerursache sowie altes Ergebnis werden zurückgesetzt, und der Zeitpunkt des letzten Starts wird auf den Zeitpunkt des erneuten Starts gesetzt. Der ursprüngliche Einreichungszeitpunkt bleibt erhalten.
 - **FR-014**: Das erneute Starten MUSS für Jobs abgelehnt werden, die nicht im Zustand „fehlgeschlagen“ sind.
 
 **Begrenzung der Parallelität**
@@ -211,6 +218,8 @@ Ein Nutzer öffnet ein abgeschlossenes Rezept aus seiner Historie, bearbeitet es
 - **FR-021**: Ein Nutzer MUSS eine Liste seiner eigenen Jobs abrufen können, neueste zuerst. Jeder Eintrag zeigt den Rezepttitel (ersatzweise die Video-URL), den Einreichungszeitpunkt, den Zustand und ob das Rezept bereits nach Mealie hochgeladen wurde.
 - **FR-022**: Ein Nutzer MUSS jeden abgeschlossenen Job aus der Historie erneut öffnen, im Editor bearbeiten und nach Mealie hochladen können.
 - **FR-023**: Änderungen im Editor MÜSSEN am Job gespeichert werden und die zuletzt gespeicherte Fassung ersetzen. Nur Fassungen, die dem Rezeptformat entsprechen, werden gespeichert. Ein Upload nach Mealie verwendet die zuletzt gespeicherte Fassung.
+- **FR-023a**: Der Editor MUSS jederzeit korrekt anzeigen, ob die angezeigte Fassung von der zuletzt gespeicherten abweicht. Das gilt auch, wenn ungespeicherte Änderungen nach dem Verlassen und erneuten Öffnen desselben Jobs wieder angezeigt werden. Ein Upload MUSS genau die im Editor angezeigte Fassung nach Mealie bringen; weicht sie von der gespeicherten ab, wird sie vorher gespeichert, und schlägt das Speichern fehl, unterbleibt der Upload mit Fehlerhinweis.
+- **FR-023b**: Der Editor DARF unter der Kennung eines Jobs ausschließlich das Rezept dieses Jobs bearbeitbar anzeigen. Kann das Rezept des geöffneten Jobs nicht geladen werden, MUSS die Oberfläche einen Fehlerhinweis zeigen, und Speichern sowie Upload für diesen Job MÜSSEN unmöglich sein.
 - **FR-024**: Ein erfolgreicher Mealie-Upload MUSS am Job mit Zeitpunkt vermerkt werden. Ein fehlgeschlagener Upload DARF das Kennzeichen nicht setzen oder verändern. Ein erneuter Upload bleibt erlaubt; die Oberfläche weist darauf hin, dass das Rezept schon hochgeladen wurde.
 - **FR-025**: Ein Nutzer MUSS Jobs in einem Endzustand aus seiner Historie löschen können. Gelöschte Jobs sind danach dauerhaft entfernt und nicht mehr abrufbar. Das Löschen wartender oder laufender Jobs MUSS abgelehnt werden.
 
@@ -221,12 +230,12 @@ Ein Nutzer öffnet ein abgeschlossenes Rezept aus seiner Historie, bearbeitet es
 **Qualitätssicherung**
 
 - **FR-027**: Die bestehende Pull-Request-Prüfung MUSS weiter bestehen und eine Testabdeckung des Backends von mindestens 80 % erzwingen; ein Unterschreiten MUSS die Prüfung fehlschlagen lassen. (Hinweis: Die heutige Prüfung misst die Abdeckung noch nicht, siehe Assumptions.)
-- **FR-028**: Automatisierte Tests MÜSSEN mindestens abdecken: die Hintergrundverarbeitung, alle Stufenübergänge inklusive Fehlerursachen, das Nebenläufigkeitslimit, die Neustart-Bereinigung, die Zeitüberschreitung, das erneute Starten, Bearbeiten, Upload-Kennzeichen, Löschen und die Zugriffsbeschränkung auf eigene Jobs.
+- **FR-028**: Automatisierte Tests MÜSSEN mindestens abdecken: die Hintergrundverarbeitung, alle Stufenübergänge inklusive Fehlerursachen, das Nebenläufigkeitslimit, die Neustart-Bereinigung, die Zeitüberschreitung, das erneute Starten (inklusive Zurücksetzen des Startzeitpunkts), Bearbeiten, Upload-Kennzeichen, Löschen und die Zugriffsbeschränkung auf eigene Jobs.
 - **FR-029**: Diese Tests MÜSSEN ohne echtes Sprachmodell, ohne echte Transkription und ohne Netzwerkzugriff nach außen laufen und damit in der Pull-Request-Prüfung ausgeführt werden.
 
 ### Key Entities
 
-- **Extraktions-Job**: Ein Auftrag eines Nutzers, ein Rezept aus einem Video zu extrahieren, und zugleich ein Eintrag seiner Historie. Enthält Besitzer, Video-URL, Zielsprache, aktuelle Stufe, Einreichungszeitpunkt, Zeitpunkt der letzten Zustandsänderung, bei Erfolg das Ergebnis in der zuletzt gespeicherten Fassung, bei Misserfolg die nutzerverständliche Fehlerursache sowie den Zeitpunkt des letzten erfolgreichen Mealie-Uploads (leer, wenn nie hochgeladen). Gehört genau einem Nutzer und wird mit ihm oder durch ihn gelöscht.
+- **Extraktions-Job**: Ein Auftrag eines Nutzers, ein Rezept aus einem Video zu extrahieren, und zugleich ein Eintrag seiner Historie. Enthält Besitzer, Video-URL, Zielsprache, aktuelle Stufe, Einreichungszeitpunkt, Zeitpunkt des letzten Starts (Einreichen oder erneuter Start), Zeitpunkt der letzten Zustandsänderung, bei Erfolg das Ergebnis in der zuletzt gespeicherten Fassung, bei Misserfolg die nutzerverständliche Fehlerursache sowie den Zeitpunkt des letzten erfolgreichen Mealie-Uploads (leer, wenn nie hochgeladen). Gehört genau einem Nutzer und wird mit ihm oder durch ihn gelöscht.
 - **Job-Stufe**: Feste Menge von Zuständen: wartend, Videobeschreibung wird geladen, Audio wird transkribiert, Rezept wird extrahiert, abgeschlossen, fehlgeschlagen. Die ersten vier außer „wartend“ gelten als aktiv; abgeschlossen und fehlgeschlagen sind Endzustände.
 - **Fehlerursache**: Feste Liste nutzerverständlicher Ursachen (siehe FR-010), getrennt von der technischen Ursache im Log.
 - **Extraktions-Ergebnis**: Das extrahierte Rezept samt optionalem Vorschlag für fehlende Felder, im selben Format wie bisher.
@@ -246,6 +255,8 @@ Ein Nutzer öffnet ein abgeschlossenes Rezept aus seiner Historie, bearbeitet es
 - **SC-009**: 100 % der gespeicherten Änderungen an einem Rezept sind beim erneuten Öffnen vorhanden und landen beim Upload in Mealie.
 - **SC-010**: Ein Nutzer erkennt in der Historie ohne weiteren Klick, welche seiner Rezepte bereits nach Mealie hochgeladen wurden.
 - **SC-011**: Die Pull-Request-Prüfung läuft ohne externe Dienste vollständig durch und meldet eine Backend-Testabdeckung von mindestens 80 %.
+- **SC-012**: In 100 % der Uploads aus dem Editor entspricht die in Mealie angekommene Fassung der beim Klick auf „Hochladen“ angezeigten Fassung; in 0 Fällen wird unter einem Job das Rezept eines anderen Jobs angezeigt oder gespeichert.
+- **SC-013**: Nach einem erneuten Start zeigt die Fortschrittsanzeige in 100 % der Fälle eine Laufzeit, die beim erneuten Start bei null beginnt.
 
 ## Assumptions
 

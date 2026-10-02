@@ -16,13 +16,18 @@ Schema changes move from `create_all` to Alembic, run automatically at startup. 
 
 The frontend polls every 2 s on a new `/jobs/[id]` page, opens the editor on completion as before, and gets a `/history` page. Details: [research.md](./research.md).
 
+**Review follow-ups (spec iteration 4: FR-009c, FR-023a, FR-023b)**:
+- A new column `started_at`, added by revision `0003_job_started_at` and reset by retry, drives the "Running for" time on the progress page ([R15](./research.md#r15--running-time-after-a-retry-fr-009c-fr-013-fr-004)).
+- The editor derives "unsaved changes" by comparing with the last server version instead of a per-instance flag, so Upload always sends what is shown ([R16](./research.md#r16--editor-state-per-job-fr-023a-fr-023b)).
+- The editor renders a form only for the job in the URL, so a previous job's recipe can no longer be shown or saved under another job.
+
 ## Technical Context
 
 **Language/Version**: Python 3.13 (backend), TypeScript / Svelte 5 with SvelteKit static adapter (frontend), Node 24
 
 **Primary Dependencies**: FastAPI 0.118, SQLAlchemy 2.0 (sync engine, psycopg2), Pydantic AI 1.0 (`deps_type`, `RunContext`, `FunctionModel` for tests), yt-dlp, OpenAI Whisper API. **New**: `alembic` (runtime dependency).
 
-**Storage**: PostgreSQL. New table `extraction_jobs` (JSONB result) via Alembic revisions `0001_baseline` and `0002_extraction_jobs` ([data-model.md](./data-model.md)).
+**Storage**: PostgreSQL. New table `extraction_jobs` (JSONB result) via Alembic revisions `0001_baseline`, `0002_extraction_jobs` and `0003_job_started_at` ([data-model.md](./data-model.md)).
 
 **Testing**: pytest + pytest-asyncio + pytest-cov. Unit tests with fake extractors and `FunctionModel`; DB tests in `tests/db/` against the Postgres service container. `ALLOW_MODEL_REQUESTS = False` globally.
 
@@ -55,7 +60,7 @@ The plan follows the conventions established in feature 001:
 - no secrets in logs or responses
 - CI without repository secrets
 
-*Post-design re-check (after Phase 1):* still no constitution. The design adds one runtime dependency (Alembic, which the spec requires) and no new service. **PASS.**
+*Post-design re-check (after Phase 1, incl. review follow-ups):* still no constitution. The design adds one runtime dependency (Alembic, which the spec requires), no new service, and one nullable-then-backfilled column. **PASS.**
 
 ## Project Structure
 
@@ -90,15 +95,16 @@ jarit/
 │   │   ├── script.py.mako                # NEW
 │   │   └── versions/
 │   │       ├── 0001_baseline.py          # NEW: users (+ user_role_enum), api_keys as today
-│   │       └── 0002_extraction_jobs.py   # NEW: extraction_jobs + indexes + check constraints
+│   │       ├── 0002_extraction_jobs.py   # NEW: extraction_jobs + indexes + check constraints
+│   │       └── 0003_job_started_at.py    # NEW (review follow-up): started_at, backfilled from created_at
 │   └── models/
 │       ├── __init__.py                   # MODIFY: import all models so Base.metadata is complete
-│       └── extraction_jobs.py            # NEW: ExtractionJob ORM model
+│       └── extraction_jobs.py            # NEW: ExtractionJob ORM model (+ started_at)
 ├── jobs/                                 # NEW package
 │   ├── __init__.py
-│   ├── models.py                         # JobStatus, FailureReason, ACTIVE/TERMINAL sets, API schemas (Summary/Detail/Create)
+│   ├── models.py                         # JobStatus, FailureReason, ACTIVE/TERMINAL sets, API schemas (Summary/Detail/Create; + started_at)
 │   ├── errors.py                         # VideoUnreachableError, TranscriptionFailedError, classify(exc) -> FailureReason
-│   ├── repository.py                     # create, get_owned, list_owned, conditional transitions, fail_orphaned_jobs
+│   ├── repository.py                     # create, get_owned, list_owned, conditional transitions, fail_orphaned_jobs; retry_job resets started_at
 │   ├── runner.py                         # ExtractionRunner: queue, workers, timeout, submit() thread-safe
 │   ├── pipeline.py                       # extract(job, report): runs video_agent with ExtractionDeps
 │   └── settings.py                       # max_concurrent_extractions() with fallback + warning
@@ -134,14 +140,14 @@ README.md                                 # MODIFY: async jobs, history, concurr
 
 frontend/src/
 ├── lib/
-│   ├── types.ts                          # MODIFY: job types
+│   ├── types.ts                          # MODIFY: job types (+ started_at)
 │   ├── api.ts                            # MODIFY: job client functions; remove extractRecipe/uploadToMealie
 │   ├── jobs.ts                           # NEW: labels, isTerminal, pollJob
 │   ├── store.ts                          # MODIFY: currentJobId
 │   └── components/
 │       ├── RecipeExtractor.svelte        # MODIFY: submit job → /jobs/{id}
-│       ├── RecipePreview.svelte          # MODIFY: load by job, save, upload via job, re-upload confirm
-│       ├── JobProgress.svelte            # NEW
+│       ├── RecipePreview.svelte          # MODIFY: load by job, save, upload via job, re-upload confirm; derived unsaved state, render only for the URL's job (R16)
+│       ├── JobProgress.svelte            # NEW; running time from started_at (R15)
 │       ├── JobHistory.svelte             # NEW
 │       ├── ActiveJobs.svelte             # NEW (dashboard)
 │       └── Navigation.svelte             # MODIFY: History link
@@ -165,6 +171,9 @@ frontend/src/
 6. **CI gate**: coverage flag in `ci.yml` (from here on every push is gated).
 7. **Frontend**: types/api/jobs helpers, `RecipeExtractor` → `/jobs/[id]` + `JobProgress`, editor changes, `/history`, `ActiveJobs`, navigation.
 8. **Docs/config**: `.env_example`, compose files, README.
+9. **Review follow-ups** (spec iteration 4):
+   - Backend: `0003_job_started_at`, the ORM column, `started_at` in the schemas, and `retry_job` resetting it. Tests in `test_job_repository.py`, `test_extraction_jobs_endpoints.py` and `test_migrations.py` (upgrade from `0002` backfills the column).
+   - Frontend: `types.ts`, `JobProgress` (elapsed from `started_at`), and `RecipePreview` (derived unsaved state, editor bound only to the URL's job, guarded save/upload). There is no frontend test runner, so these are checked with `npm run check` and quickstart §8.
 
 Steps 1 to 6 are backend-only and can be merged behind the old UI only if the old endpoints stay. Because they are removed in step 5, steps 5 and 7 must land in the same PR.
 
@@ -176,6 +185,8 @@ Steps 1 to 6 are backend-only and can be merged behind the old UI only if the ol
 | A thread (yt-dlp/Whisper) keeps running after the timeout | Slot is freed anyway; the result is dropped by the conditional update. Documented in code (R5). |
 | `tests/db` truncation vs. migrations | Run migrations once per session; truncate `users, api_keys, extraction_jobs`. `test_migrations.py` uses its own Postgres schema (`SET search_path`), created and dropped in the test, so it never touches the shared one. |
 | Someone runs uvicorn with `--workers > 1` | README warning. The startup cleanup in a second worker would fail the other worker's jobs, so this is called out explicitly. |
+| `0002` already applied on development databases of this branch | `started_at` goes into a new revision `0003` instead of editing `0002`, which Alembic would skip there (R15). |
+| Comparing recipes via `JSON.stringify` reports a false "unsaved" if key order differs | Both sides come from the same server JSON and are edited in place, so key order is preserved. A false positive only causes an extra, harmless save before upload. |
 | Coverage drops below 80 % with large new modules | The test inventory in contracts/ci-checks.md is part of the definition of done. Frontend code is not counted (backend-only gate). |
 
 ## Complexity Tracking

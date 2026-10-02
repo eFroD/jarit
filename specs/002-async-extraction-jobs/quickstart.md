@@ -29,8 +29,8 @@ Expected: all tests pass, coverage ≥ 80 %, the inventory in [contracts/ci-chec
 
 1. Check out `dev` before this feature and start the dev stack (`docker compose -f docker-compose.dev.yml up`). Register a user and store Mealie credentials.
 2. Switch to the feature branch and restart the backend.
-3. Expected log: `Upgrading database schema …` and `Database schema at revision 0002_extraction_jobs`.
-4. Check: `docker compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c 'select version_num from alembic_version; select count(*) from users; select count(*) from api_keys;'`. The revision is `0002_…` and the counts are unchanged. Logging in and verifying Mealie still work.
+3. Expected log: `Upgrading database schema …` and `Database schema at revision 0003_job_started_at`.
+4. Check: `docker compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB -c 'select version_num from alembic_version; select count(*) from users; select count(*) from api_keys;'`. The revision is `0003_…` and the counts are unchanged. Logging in and verifying Mealie still work.
 
 ## 3. Happy path with progress (Stories 1 and 2)
 
@@ -61,3 +61,10 @@ Expected: all tests pass, coverage ≥ 80 %, the inventory in [contracts/ci-chec
 ## 7. Isolation (SC-008)
 
 Log in as a second user and as an admin: `/history` shows only their own jobs, and `GET/PUT/POST/DELETE` on a job id of the first user all return `404 Extraction job not found`.
+
+## 8. Review follow-ups (FR-009c, FR-023a, FR-023b)
+
+1. **Unsaved edits after back navigation**: open a completed job, change the title, do **not** save, click **← Back**, then reopen the job from the history. Expected: the changed title is shown with "Unsaved changes", and **Save** is enabled. Click **Upload to Mealie**: the recipe in Mealie has the changed title, and reopening the job after a reload still shows it (SC-012).
+2. **Failed load does not show another job**: open job A in the editor. Then open `/jobs/<id of a deleted or foreign job>/recipe` (or block the API in the browser dev tools and open job B). Expected: an error with a link to the history; neither A's recipe nor any form is shown, and nothing is sent to `PUT …/recipe`.
+3. **Running time after retry**: retry a job that failed some minutes ago. Expected: "Running for" starts again at 0 s; the history still shows the original submission time. `GET /extraction-jobs/<id>` returns a `started_at` later than `created_at` (SC-013).
+4. **Upgrade from `0002`**: on a database already at `0002_extraction_jobs`, restart the backend. Expected log: upgrade to `0003_job_started_at`; existing jobs have `started_at = created_at`.

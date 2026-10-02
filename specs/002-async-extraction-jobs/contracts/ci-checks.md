@@ -29,6 +29,6 @@ Workflow: `.github/workflows/ci.yml`, trigger unchanged (pull requests against `
 | Stage reporting with and without transcription; tool exception translation | `tests/unit/test_extraction_pipeline.py` (`FunctionModel`) |
 | Concurrency setting parsing | `tests/unit/test_job_settings.py` |
 | Restart cleanup, conditional transitions | `tests/db/test_job_repository.py` |
-| Endpoints: submit, get, list, edit, upload flag, retry, delete, foreign/admin access → 404 | `tests/db/test_extraction_jobs_endpoints.py` |
-| Migrations: empty DB and legacy `create_all` DB with data | `tests/db/test_migrations.py` |
+| Endpoints: submit, get, list, edit, upload flag, retry (resets `started_at`, keeps `created_at`), delete, foreign/admin access → 404 | `tests/db/test_extraction_jobs_endpoints.py` |
+| Migrations: empty DB and legacy `create_all` DB with data; upgrade from `0002` backfills `started_at` | `tests/db/test_migrations.py` |
 | No technical detail in job responses | `tests/db/test_extraction_jobs_endpoints.py` (sentinel exception text must not appear) |

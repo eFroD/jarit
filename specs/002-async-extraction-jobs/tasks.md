@@ -356,6 +356,73 @@ Web app with the backend at the repo root (`main.py`, `jarit/`, `tests/`) and th
 
 ---
 
+## Phase 11: Review Follow-ups (spec iteration 4: FR-009c, FR-023a, FR-023b)
+
+**Purpose**: Fix the three code-review findings that were added to the spec as US3 scenario 6 and US7 scenarios 9–10. Design: [research.md R15/R16](./research.md#r15--running-time-after-a-retry-fr-009c-fr-013-fr-004), [data-model.md](./data-model.md), [contracts/http-api.md](./contracts/http-api.md), [contracts/ui-flow.md](./contracts/ui-flow.md).
+
+**Independent Test**: [quickstart.md](./quickstart.md) §8. Backend: the tests below pass, and coverage stays ≥ 80 %.
+
+### Tests for the follow-ups (US3: running time after retry)
+
+- [X] T060 [P] [US3] In `tests/db/test_job_repository.py`:
+  - extend `test_retry_only_from_failed_and_clears_state`: before `retry_job`, set the job's `created_at` and `started_at` to one hour ago with a plain `UPDATE`. After the retry, `started_at` is later than the old value and `created_at` is unchanged.
+  - new `test_new_job_has_started_at`: `create_job` returns a job whose `started_at` equals `created_at`.
+- [X] T061 [P] [US3] In `tests/db/test_extraction_jobs_endpoints.py`:
+  - `test_retry_failed_job` also asserts that the response contains `started_at`, that it is later than the backdated value (backdate as in T060), and that `created_at` is unchanged.
+  - `GET /extraction-jobs` and `GET /extraction-jobs/{id}` include `started_at`.
+- [X] T062 [P] [US3] In `tests/db/test_migrations.py`, add `test_upgrade_from_0002_backfills_started_at(schema_engine)`:
+  - `command.upgrade(cfg, "0002_extraction_jobs")`
+  - insert a user and a job with a fixed `created_at`
+  - run `run_migrations`
+  - the job's `started_at` equals its `created_at`, the column is `NOT NULL`, and the revision is `0003_job_started_at`
+
+  Extend `test_downgrade_to_base_and_back` if it asserts the head revision by name.
+
+### Implementation for the follow-ups (US3: running time after retry)
+
+- [X] T063 [US3] Create `jarit/db/migrations/versions/0003_job_started_at.py` (`down_revision = "0002_extraction_jobs"`):
+  - upgrade:
+    - `op.add_column("extraction_jobs", sa.Column("started_at", sa.TIMESTAMP(timezone=True), nullable=True))`
+    - `UPDATE extraction_jobs SET started_at = created_at`
+    - `op.alter_column(..., nullable=False, server_default=sa.text("now()"))`
+  - downgrade: `op.drop_column("extraction_jobs", "started_at")`
+- [X] T064 [US3] Add `started_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))` to `jarit/db/models/extraction_jobs.py`, after `created_at`.
+- [X] T065 [US3] Add `started_at: datetime` to `ExtractionJobSummary` in `jarit/jobs/models.py` (inherited by `ExtractionJobDetail`). In `jarit/jobs/repository.py`, `retry_job` additionally sets `started_at=func.now()`; nothing else changes `started_at`.
+- [X] T066 [P] [US3] Frontend:
+  - `frontend/src/lib/types.ts`: add `started_at: string` to `ExtractionJobSummary`.
+  - `frontend/src/lib/components/JobProgress.svelte`: compute "Running for" with `elapsed(job.started_at, now)` instead of `job.created_at`. `JobHistory.svelte` keeps `created_at`.
+
+### Implementation for the follow-ups (US7: editor state per job)
+
+No frontend test runner exists; these tasks are verified by `npm run check` and quickstart §8.
+
+- [X] T067 [US7] Derived unsaved state in `frontend/src/lib/components/RecipePreview.svelte` (FR-023a, R16):
+  - remove the `dirty` variable
+  - add `$: savedJson = job?.result?.recipe ? JSON.stringify(job.result.recipe) : null` and `$: unsaved = !!recipe && savedJson !== null && JSON.stringify(recipe) !== savedJson`
+  - edit handlers keep calling `extractedRecipe.set(...)`. They must trigger reactivity, so call `extractedRecipe.set({ ...updated })` (a new object) in `changed()`.
+  - `save()` sets `job` from the `PUT` response, which makes `unsaved` false
+  - `handleUpload`: `if (unsaved && !(await save())) return;`
+  - indicator and Save button use `unsaved` instead of `dirty`
+- [X] T068 [US7] Editor bound only to the URL's job in `frontend/src/lib/components/RecipePreview.svelte` (FR-023b, R16). Same file as T067, so do it after T067.
+  - replace `$: recipe = $extractedRecipe` with `$: recipe = job?.id === jobId && $currentJobId === jobId ? $extractedRecipe : null`
+  - add `let loadError = ''`. In `onMount`'s `catch`, set it to the error message (`ApiError` 404 → "This extraction does not exist.")
+  - template:
+    - `{#if recipe}` … editor …
+    - `{:else if loadError}` an error box with a link to `resolve('/history')`
+    - `{:else}` "Loading…"
+  - `save()` and `handleUpload()` return early unless `job?.id === jobId`
+  - keep the existing rule in `onMount`: replace the stores only if `$currentJobId !== jobId || !$extractedRecipe`; otherwise keep the edits, which T067 now shows as unsaved
+
+### Checks
+
+- [ ] T069 Run the checks from [quickstart.md](./quickstart.md) §1 again: `uv run ruff check .`, `uv run ruff format --check .`, the full test run with coverage ≥ 80 %, and in `frontend/` `npm run lint`, `npm run check` and `npm run build`. Then validate [quickstart.md](./quickstart.md) §8 manually in a browser.
+  - *Done on 2026-10-02:* ruff check and format clean; 138 tests passed, coverage 89.5 %; `npm run lint` clean, `npm run check` 0 errors (the same 15 warnings as before), `npm run build` ok.
+  - *Open:* quickstart §8 manually in a browser.
+
+**Checkpoint**: All three review findings are fixed. US3 scenario 6 and US7 scenarios 9–10 pass.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -369,6 +436,7 @@ Web app with the backend at the repo root (`main.py`, `jarit/`, `tests/`) and th
   - US6 needs the list endpoint from US2 (T033).
   - US7 needs `JobHistory.svelte` from US6 (T051) for T056; its backend tasks are independent of US6.
 - **Polish (Phase 10)**: after all stories.
+- **Review follow-ups (Phase 11)**: after Phase 10, because it changes code from US3 and US7. Inside: T060–T062 (tests, parallel) → T063 → T064 → T065; T066 after T065 (API shape); T067 → T068 (same file), independent of the backend chain; T069 last.
 
 ### Within Each User Story
 
@@ -384,6 +452,7 @@ Tests first (they should fail), then repository/runner, then endpoints, then fro
 - US4 and US5 can be done in parallel with each other (T044, T045, T047, T048 are separate files).
 - US6: T050 and T052 in parallel with T051.
 - US7: T053 in parallel with the start of T054.
+- Phase 11: T060, T061 and T062 in parallel; the backend chain T063 → T064 → T065 in parallel with the frontend chain T067 → T068; T066 once T065 is done.
 
 ---
 

@@ -29,7 +29,8 @@ Base path `/api/v1`. Every endpoint requires a bearer token (`Depends(get_curren
   "title": "Shakshuka" | null,          // null until COMPLETED
   "status": "COMPLETED",
   "failure_reason": null,               // set iff status == FAILED
-  "created_at": "2026-10-02T10:15:00Z",
+  "created_at": "2026-10-02T10:15:00Z",  // submission; never changes
+  "started_at": "2026-10-02T10:15:00Z",  // submission or last retry (FR-009c)
   "updated_at": "2026-10-02T10:15:41Z",
   "uploaded_to_mealie_at": "2026-10-02T10:20:03Z" | null
 }
@@ -109,7 +110,7 @@ No body.
 
 | Status | When | Body |
 |---|---|---|
-| `202` | own job was `FAILED` | `ExtractionJob` (status `QUEUED`, `failure_reason`/`result`/`title` cleared) |
+| `202` | own job was `FAILED` | `ExtractionJob` (status `QUEUED`, `failure_reason`/`result`/`title` cleared, `started_at` = time of the retry, `created_at` unchanged) |
 | `404` | as above | as above |
 | `409` | job is not `FAILED` (including a second click) | `{"detail": "Only failed extractions can be retried"}` |
 

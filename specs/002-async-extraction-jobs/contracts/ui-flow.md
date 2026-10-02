@@ -16,7 +16,7 @@ SvelteKit with the static adapter (`fallback: 'index.html'`); nginx already serv
 
 - Loads the job on mount, then polls `GET /extraction-jobs/{id}` every **2 s** while the status is `QUEUED` or active. Polling stops on a terminal status and when the page is left (`onDestroy`).
 - Shows a step list: Waiting → Fetching video description → Transcribing audio → Extracting recipe. The current step is highlighted, earlier ones are checked. "Transcribing audio" can appear after "Extracting recipe" (the model decides late that it needs the transcript); it is shown as skipped only when the job completes without it.
-- Shows the URL and how long the job has been running.
+- Shows the URL and how long the job has been running, measured from `started_at` (not `created_at`), so the time restarts at zero after **Try again** (FR-009c).
 - `COMPLETED` → sets `extractedRecipe`, `suggestedRecipe` and `currentJobId` from the job and navigates to `/jobs/{id}/recipe` (same behavior as the old synchronous flow).
 - `FAILED` → shows the reason text (table in [data-model.md](../data-model.md#failurereason)) and a **Try again** button (`POST …/retry`, then polling resumes on the same page). The button is disabled while the request is in flight.
 - `404` → "This extraction does not exist." with a link to `/history`.
@@ -24,9 +24,12 @@ SvelteKit with the static adapter (`fallback: 'index.html'`); nginx already serv
 
 ## `/jobs/{id}/recipe` — editor (Story 7, FR-022 to FR-024)
 
-- If the stores are empty or hold another job (reload, coming from history), loads the job. A job that is not `COMPLETED` redirects to `/jobs/{id}`.
+- Always loads the job on mount. A job that is not `COMPLETED` redirects to `/jobs/{id}`.
+- The form is shown only once the loaded job is the job in the URL and `currentJobId` matches it. Before that: "Loading…". If loading fails (network error, `404`): an error with a link to `/history`, no form, and no Save or Upload. A recipe of another job from the stores is never shown here (FR-023b).
+- If the stores hold this job (`currentJobId === id`), the edits in them are kept; otherwise they are replaced by the server version.
+- "Unsaved changes" is derived by comparing the editor state with the recipe of the job as last returned by the server, not tracked as a flag. Kept edits from an earlier visit therefore show as unsaved and enable **Save** (FR-023a, [research.md R16](../research.md#r16--editor-state-per-job-fr-023a-fr-023b)).
 - **Save** button: `PUT …/recipe` with the current editor state. A "saved" or "unsaved changes" indicator is shown.
-- **Upload to Mealie**: saves first if there are unsaved changes, then `POST …/upload-mealie`. If `uploaded_to_mealie_at` is already set, a confirmation dialog appears first: "This recipe was already uploaded on {date}. Upload again? This creates another copy in Mealie."
+- **Upload to Mealie**: saves first whenever the editor state differs from the saved version, then `POST …/upload-mealie`. If that save fails, the upload is not sent and the error is shown. If `uploaded_to_mealie_at` is already set, a confirmation dialog appears first: "This recipe was already uploaded on {date}. Upload again? This creates another copy in Mealie."
 - Without a configured Mealie key: same message as today.
 - **Discard** (existing button) now goes back without deleting the job; the job stays in the history.
 - The old `/recipe-preview` route is removed; the job id is part of the path. Route ids in `resolve()` include the group: `resolve('/(app)/jobs/[id]/recipe', { id })`.

@@ -125,3 +125,28 @@ Phase 0 of [plan.md](./plan.md). Each decision lists the rationale and the alter
 - **Decision**: The CI test step becomes `uv run pytest -q --cov=jarit --cov=main --cov-report=term-missing --cov-fail-under=80`.
 - **Finding**: Measured on `dev` at `4773479` with a Postgres test DB: **81 % (622 statements, 116 missed), 55 tests passed**. Without Postgres the number is 32 %, so the gate only makes sense where `tests/db` runs, which CI does.
 - **Rationale**: `pytest-cov` is already a dev dependency. Local runs without Postgres stay ungated because the flag only lives in the workflow.
+
+## R15 – Running time after a retry (FR-009c, FR-013, FR-004)
+
+- **Decision**:
+  - New column `extraction_jobs.started_at TIMESTAMPTZ NOT NULL DEFAULT now()`. It is set on insert and reset to `now()` by `retry_job`, in the same conditional `UPDATE` that clears `failure_reason`, `result` and `title`. `created_at` stays the submission time and remains the history sort key.
+  - It is added by a new Alembic revision `0003_job_started_at`: add the column as nullable, backfill `started_at = created_at`, then set `NOT NULL` and `server_default now()`.
+  - `ExtractionJobSummary`/`ExtractionJob` expose `started_at`. The progress page computes "Running for" from `started_at`; the history keeps showing `created_at`.
+- **Rationale**: The progress page cannot derive the restart time from `updated_at`, because every stage change moves `updated_at`. A separate column keeps both meanings ("submitted" vs. "this run started") explicit. A new revision instead of editing `0002` is needed because development databases on this branch are already at `0002`. Alembic would skip a changed `0002` there, and the column would be missing.
+- **Alternatives considered**:
+  - Reset `created_at` on retry. Rejected: the history would reorder the job and lose the original submission time (spec edge case "Laufzeitanzeige nach erneutem Start").
+  - Track the restart time only in the browser. Rejected: it is lost on reload and in a second tab, and wrong when the retry came from the history page.
+  - Measure from the time the worker actually starts the job (leaving `QUEUED`). Rejected for now: the spec counts from submit or retry, and time spent waiting for a free slot is part of what the user waits for.
+
+## R16 – Editor state per job (FR-023a, FR-023b)
+
+- **Decision**:
+  - **Unsaved state is derived, not a flag.** `RecipePreview` keeps the job as last returned by the server (`job`, from `GET` on mount or the response of `PUT …/recipe`). "Unsaved changes" is `serialize(recipe) !== serialize(job.result.recipe)`, where `serialize` is `JSON.stringify` over the same object shape. Edits that are kept in the `extractedRecipe` store across navigation therefore still count as unsaved when the job is reopened. The local `dirty` boolean is removed.
+  - **Upload uploads what is shown.** `handleUpload` saves first whenever the derived state is "unsaved". If the save fails, it stops and shows the error, so the upload does not run. This is already the order today; only the condition changes.
+  - **Only the opened job's recipe is editable.** The editor renders the form only when `job?.id === jobId` and `$currentJobId === jobId`. The store's recipe is bound to the editor only under the same condition. Until then it shows "Loading…"; if the `GET` fails (network, 404) it shows an error with a link to `/history` and no form. `save()` and `handleUpload()` return early unless `job?.id === jobId`.
+  - On a successful load with `$currentJobId !== jobId` (or an empty store), the stores are replaced with the server version as today. On a load with `$currentJobId === jobId`, the store keeps the edits, and the derived state shows them as unsaved if they differ.
+- **Rationale**: The bug came from two separate sources of truth: the store kept the edits, but the "dirty" flag was per component instance. Deriving the state from the data removes that class of error. The ownership guard closes the window in which another job's recipe was editable under this job's id.
+- **Alternatives considered**:
+  - Persist `dirty` in a store next to `currentJobId`. Rejected: it can still drift from the data, for example after a save in another tab.
+  - Drop the kept edits on every reopen. Rejected: losing unsaved edits on back navigation is a worse experience than showing them as unsaved.
+  - Put a draft of the edits in `localStorage`. Out of scope; the spec only asks that unsaved changes are labelled correctly and never uploaded by mistake.

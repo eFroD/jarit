@@ -35,4 +35,5 @@
 - Abweichung Eingabe ↔ Repo: Die CI erzwingt heute keine 80-%-Abdeckung; FR-027 führt das ein (siehe Assumptions).
 - Iteration 3 (2026-10-02): „Ziel 2“ nachgereicht und in Story 2 übernommen (Szenarien 5–6, FR-009 bis FR-009b).
 - „Bestehende Datenbank“, „kein zusätzlicher Dienst“ und „Migrationssystem“ sind ausdrückliche Vorgaben aus der Eingabe und als Rahmenbedingungen formuliert, ohne konkrete Technologie zu nennen.
+- Iteration 4 (2026-10-02): Code-Review-Befunde übernommen: ungespeicherte Änderungen nach Rückkehr in den Editor (Story 7 Szenario 9, FR-023a), Rezept eines anderen Jobs im Editor bei Ladefehler (Story 7 Szenario 10, FR-023b), Laufzeitanzeige nach erneutem Start (Story 3 Szenario 6, FR-009c, FR-013, FR-004, Key Entity „Zeitpunkt des letzten Starts“), dazu Edge Cases, FR-028 und SC-012/SC-013. Alle Prüfpunkte weiterhin erfüllt.
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
