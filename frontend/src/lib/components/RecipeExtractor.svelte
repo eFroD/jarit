@@ -1,7 +1,7 @@
 <!-- RecipeExtractor.svelte -->
 <script lang="ts">
 	import { api } from '$lib/api';
-	import { extractedRecipe, suggestedRecipe, error, isLoading } from '$lib/store';
+	import { error, isLoading } from '$lib/store';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
@@ -23,22 +23,11 @@
 		isLoading.set(true);
 
 		try {
-			const result = await api.extractRecipe(videoUrl, targetLanguage);
-
-			if (result.recipe) {
-				extractedRecipe.set(result.recipe);
-				suggestedRecipe.set(result.suggested_version);
-
-				if (result.error_info?.error) {
-					error.set(`Warning: ${result.error_info.error}`);
-				}
-
-				goto(resolve('/recipe-preview'));
-			} else {
-				throw new Error('Failed to extract recipe. Please check the URL and try again.');
-			}
+			// The extraction runs in the background; follow it on its progress page.
+			const job = await api.createExtractionJob(videoUrl, targetLanguage);
+			goto(resolve('/(app)/jobs/[id]', { id: job.id }));
 		} catch (err) {
-			localError = err instanceof Error ? err.message : 'Extraction failed';
+			localError = err instanceof Error ? err.message : 'Could not start the extraction';
 			error.set(localError);
 		} finally {
 			isLoading.set(false);
@@ -106,7 +95,7 @@
 		>
 			{#if $isLoading}
 				<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-				<span>Extracting...</span>
+				<span>Starting...</span>
 			{:else}
 				<span>🎥 Extract Recipe</span>
 			{/if}

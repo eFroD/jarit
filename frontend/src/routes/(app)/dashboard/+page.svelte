@@ -2,6 +2,7 @@
 <script lang="ts">
 	import RecipeExtractor from '$lib/components/RecipeExtractor.svelte';
 	import MealieConfig from '$lib/components/MealieConfig.svelte';
+	import ActiveJobs from '$lib/components/ActiveJobs.svelte';
 </script>
 
 <div class="min-h-screen bg-gray-50">
@@ -14,6 +15,7 @@
 		</div>
 
 		<div class="space-y-8">
+			<ActiveJobs />
 			<RecipeExtractor />
 			<MealieConfig />
 		</div>

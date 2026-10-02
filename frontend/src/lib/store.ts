@@ -39,6 +39,11 @@ export const extractedRecipe = writable<Recipe | null>(null);
 export const suggestedRecipe = writable<Recipe | null>(null);
 
 /**
+ * Extraction job whose recipe is loaded in extractedRecipe/suggestedRecipe
+ */
+export const currentJobId = writable<string | null>(null);
+
+/**
  * Global loading state
  */
 export const isLoading = writable(false);
@@ -84,5 +89,7 @@ export function logout() {
 	apiKeys.set([]);
 	mealieKey.set(null);
 	extractedRecipe.set(null);
+	suggestedRecipe.set(null);
+	currentJobId.set(null);
 	error.set(null);
 }

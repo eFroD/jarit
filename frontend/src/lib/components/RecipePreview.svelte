@@ -1,27 +1,65 @@
 <!-- RecipePreview.svelte -->
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
-	import { extractedRecipe, error, isLoading, mealieKey } from '$lib/store';
+	import {
+		currentJobId,
+		extractedRecipe,
+		suggestedRecipe,
+		error,
+		isLoading,
+		mealieKey
+	} from '$lib/store';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { Recipe } from '$lib/types';
+	import type { ExtractionJob, Recipe } from '$lib/types';
+
+	export let jobId: string;
 
 	let recipe: Recipe | null = null;
+	let job: ExtractionJob | null = null;
 	let showSuccessMessage = false;
+	let dirty = false;
+	let saving = false;
 
 	$: recipe = $extractedRecipe;
+
+	onMount(async () => {
+		try {
+			const loaded = await api.getExtractionJob(jobId);
+			if (loaded.status !== 'COMPLETED' || !loaded.result?.recipe) {
+				goto(resolve('/(app)/jobs/[id]', { id: jobId }));
+				return;
+			}
+			job = loaded;
+			// Keep unsaved edits if this job is already in the editor (e.g. back navigation).
+			if ($currentJobId !== jobId || !$extractedRecipe) {
+				extractedRecipe.set(loaded.result.recipe);
+				suggestedRecipe.set(loaded.result.suggested_version);
+				currentJobId.set(jobId);
+				dirty = false;
+			}
+		} catch {
+			// request() already put the message into the error store
+		}
+	});
+
+	function changed(updated: Recipe) {
+		extractedRecipe.set(updated);
+		dirty = true;
+	}
 
 	function editField(field: keyof Recipe, value: string) {
 		if (recipe) {
 			recipe = Object.assign(recipe, { [field]: value });
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
 	function editIngredient(index: number, value: string) {
 		if (recipe && recipe.recipeIngredient) {
 			recipe.recipeIngredient[index] = value;
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
@@ -29,14 +67,14 @@
 		if (recipe) {
 			if (!recipe.recipeIngredient) recipe.recipeIngredient = [];
 			recipe.recipeIngredient = [...recipe.recipeIngredient, ''];
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
 	function removeIngredient(index: number) {
 		if (recipe && recipe.recipeIngredient) {
 			recipe.recipeIngredient = recipe.recipeIngredient.filter((_, i) => i !== index);
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
@@ -46,7 +84,7 @@
 			if (instruction && '@type' in instruction && instruction['@type'] === 'HowToStep') {
 				instruction.text = value;
 				recipe.recipeInstructions = [...recipe.recipeInstructions];
-				extractedRecipe.set(recipe);
+				changed(recipe);
 			}
 		}
 	}
@@ -58,37 +96,61 @@
 				...recipe.recipeInstructions,
 				{ '@type': 'HowToStep', text: '' }
 			];
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
 	function removeInstruction(index: number) {
 		if (recipe && recipe.recipeInstructions) {
 			recipe.recipeInstructions = recipe.recipeInstructions.filter((_, i) => i !== index);
-			extractedRecipe.set(recipe);
+			changed(recipe);
+		}
+	}
+
+	async function save(): Promise<boolean> {
+		if (!recipe || !jobId) return false;
+		saving = true;
+		try {
+			job = await api.saveJobRecipe(jobId, recipe);
+			dirty = false;
+			return true;
+		} catch {
+			return false;
+		} finally {
+			saving = false;
 		}
 	}
 
 	async function handleUpload() {
-		if (!recipe) return;
+		if (!recipe || !jobId) return;
 
 		if (!$mealieKey) {
 			error.set('Please configure Mealie API key first');
 			return;
 		}
 
+		if (job?.uploaded_to_mealie_at) {
+			const when = new Date(job.uploaded_to_mealie_at).toLocaleString();
+			const again = confirm(
+				`This recipe was already uploaded on ${when}. Upload again? This creates another copy in Mealie.`
+			);
+			if (!again) return;
+		}
+
 		isLoading.set(true);
 		error.set(null);
 
 		try {
-			await api.uploadToMealie(recipe);
+			// The server uploads the stored version, so unsaved edits go first.
+			if (dirty && !(await save())) return;
+			const result = await api.uploadJobToMealie(jobId);
+			if (job) job = { ...job, uploaded_to_mealie_at: result.uploaded_to_mealie_at };
 			showSuccessMessage = true;
 			error.set(null);
 
 			setTimeout(() => {
-				extractedRecipe.set(null);
 				showSuccessMessage = false;
-				goto(resolve('/dashboard'));
+				goto(resolve('/history'));
 			}, 2000);
 		} catch (err) {
 			error.set(err instanceof Error ? err.message : 'Upload failed');
@@ -98,8 +160,8 @@
 	}
 
 	function handleCancel() {
-		extractedRecipe.set(null);
-		goto(resolve('/dashboard'));
+		// The job stays in the history; only leave the editor.
+		goto(resolve('/history'));
 	}
 </script>
 
@@ -119,7 +181,7 @@
 		{#if showSuccessMessage}
 			<div class="rounded-lg border border-green-200 bg-green-50 p-6 text-center">
 				<p class="mb-2 font-medium text-green-800">✓ Recipe uploaded successfully!</p>
-				<p class="text-sm text-green-700">Redirecting to dashboard...</p>
+				<p class="text-sm text-green-700">Redirecting to your history...</p>
 			</div>
 		{/if}
 
@@ -359,6 +421,20 @@
 					</div>
 
 					<div class="space-y-2 border-t pt-4">
+						<p class="text-xs" class:text-gray-500={!dirty} class:text-amber-600={dirty}>
+							{dirty ? 'Unsaved changes' : 'All changes saved'}
+							{#if job?.uploaded_to_mealie_at}
+								· In Mealie since {new Date(job.uploaded_to_mealie_at).toLocaleDateString()}
+							{/if}
+						</p>
+						<button
+							on:click={save}
+							type="button"
+							disabled={!dirty || saving || $isLoading}
+							class="w-full rounded-lg bg-cyan-600 py-2 font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{saving ? 'Saving...' : 'Save changes'}
+						</button>
 						<button
 							on:click={handleUpload}
 							disabled={$isLoading}
@@ -372,7 +448,7 @@
 							disabled={$isLoading}
 							class="w-full rounded-lg bg-gray-300 py-2 font-medium text-gray-900 transition hover:bg-gray-400 disabled:opacity-50"
 						>
-							✗ Cancel
+							← Back to history
 						</button>
 					</div>
 				</div>

@@ -6,7 +6,9 @@ import type {
 	User,
 	APIKey,
 	Recipe,
-	ExtractRecipeResponse,
+	ExtractionJob,
+	ExtractionJobSummary,
+	UploadResponse,
 	LoginResponse,
 	RegisterResponse
 } from './types';
@@ -14,6 +16,18 @@ import type {
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api/v1';
 
 // ============ HTTP REQUEST HELPER ============
+
+/**
+ * Error thrown for non-2xx responses; keeps the HTTP status for callers
+ */
+export class ApiError extends Error {
+	constructor(
+		message: string,
+		public status: number
+	) {
+		super(message);
+	}
+}
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
 	const token = get(authToken);
@@ -58,7 +72,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 				errorMsg = response.statusText || errorMsg;
 			}
 
-			throw new Error(errorMsg);
+			throw new ApiError(errorMsg, response.status);
+		}
+
+		if (response.status === 204) {
+			return undefined as T;
 		}
 
 		return await response.json();
@@ -147,11 +165,10 @@ export const api = {
 	},
 
 	/**
-	 * Extract recipe from video URL using AI agent
-	 * Requires: authenticated user, video URL, target language
+	 * Submit a video URL for extraction; returns the queued job immediately
 	 */
-	extractRecipe(url: string, targetLanguage: string = 'english'): Promise<ExtractRecipeResponse> {
-		return request<ExtractRecipeResponse>('/recipes/extract-recipe', {
+	createExtractionJob(url: string, targetLanguage: string = 'english'): Promise<ExtractionJob> {
+		return request<ExtractionJob>('/extraction-jobs', {
 			method: 'POST',
 			body: JSON.stringify({
 				url,
@@ -161,13 +178,54 @@ export const api = {
 	},
 
 	/**
-	 * Upload extracted recipe to Mealie instance
-	 * Requires: authenticated user, configured Mealie API key
+	 * Current state (and result, once completed) of one extraction job
 	 */
-	uploadToMealie(recipe: Recipe): Promise<void> {
-		return request<void>('/integrations/upload-mealie', {
-			method: 'POST',
+	getExtractionJob(id: string): Promise<ExtractionJob> {
+		return request<ExtractionJob>(`/extraction-jobs/${id}`);
+	},
+
+	/**
+	 * The current user's extraction history, newest first
+	 */
+	listExtractionJobs(): Promise<ExtractionJobSummary[]> {
+		return request<ExtractionJobSummary[]>('/extraction-jobs');
+	},
+
+	/**
+	 * Save the edited recipe of a completed job
+	 */
+	saveJobRecipe(id: string, recipe: Recipe): Promise<ExtractionJob> {
+		return request<ExtractionJob>(`/extraction-jobs/${id}/recipe`, {
+			method: 'PUT',
 			body: JSON.stringify(recipe)
+		});
+	},
+
+	/**
+	 * Upload the stored recipe of a completed job to Mealie
+	 * Requires: configured Mealie API key
+	 */
+	uploadJobToMealie(id: string): Promise<UploadResponse> {
+		return request<UploadResponse>(`/extraction-jobs/${id}/upload-mealie`, {
+			method: 'POST'
+		});
+	},
+
+	/**
+	 * Start a failed job again with the same URL and language
+	 */
+	retryExtractionJob(id: string): Promise<ExtractionJob> {
+		return request<ExtractionJob>(`/extraction-jobs/${id}/retry`, {
+			method: 'POST'
+		});
+	},
+
+	/**
+	 * Remove a finished job from the history
+	 */
+	deleteExtractionJob(id: string): Promise<void> {
+		return request<void>(`/extraction-jobs/${id}`, {
+			method: 'DELETE'
 		});
 	},
 

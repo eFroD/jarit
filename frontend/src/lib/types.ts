@@ -64,6 +64,44 @@ export interface ExtractRecipeResponse {
 	error_info: RecipeError;
 }
 
+export type JobStatus =
+	| 'QUEUED'
+	| 'FETCHING_DESCRIPTION'
+	| 'TRANSCRIBING'
+	| 'EXTRACTING'
+	| 'COMPLETED'
+	| 'FAILED';
+
+export type FailureReason =
+	| 'VIDEO_UNREACHABLE'
+	| 'NO_RECIPE_FOUND'
+	| 'TRANSCRIPTION_FAILED'
+	| 'LLM_ERROR'
+	| 'TIMEOUT'
+	| 'RESTARTED'
+	| 'UNKNOWN';
+
+export interface ExtractionJobSummary {
+	id: string;
+	video_url: string;
+	target_language: string;
+	title: string | null;
+	status: JobStatus;
+	failure_reason: FailureReason | null;
+	created_at: string;
+	updated_at: string;
+	uploaded_to_mealie_at: string | null;
+}
+
+export interface ExtractionJob extends ExtractionJobSummary {
+	result: ExtractRecipeResponse | null;
+}
+
+export interface UploadResponse {
+	message: string;
+	uploaded_to_mealie_at: string;
+}
+
 export interface LoginResponse {
 	access_token: string;
 	token_type: string;
