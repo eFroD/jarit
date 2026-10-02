@@ -19,6 +19,7 @@ dependencies = [
     "passlib[argon2]>=1.7.4",
     "cryptography>=46.0.3",
     "alembic>=1.20.0",
+    "uvicorn>=0.37.0",
 ]
 
 [dependency-groups]
@@ -28,7 +29,6 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-env>=1.1.5",
     "ruff>=0.13.3",
-    "uvicorn>=0.37.0",
 ]
 # Only needed for tests/model_eval: `uv sync --group eval`
 eval = [

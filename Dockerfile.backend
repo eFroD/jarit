@@ -1,3 +1,5 @@
+FROM ghcr.io/astral-sh/uv:0.11.3 AS uv
+
 FROM python:3.13-slim
 
 WORKDIR /app
@@ -8,22 +10,29 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
+COPY --from=uv /uv /uvx /bin/
+
+# The environment is complete after the build: `uv run` must not sync (or reach
+# the network) when the container starts.
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_SYNC=1 \
+    PATH="/app/.venv/bin:$PATH"
+
 COPY pyproject.toml uv.lock ./
 
-RUN pip install uv
-
-RUN uv sync
+# yt-dlp has to follow changes on the video platforms, so every build takes the
+# newest release; all other packages stay as locked. A new YTDLP_REFRESH value
+# (the scheduled rebuild passes the run id) skips the build cache for this step.
+ARG YTDLP_REFRESH=local
+RUN --mount=type=cache,target=/root/.cache/uv \
+    echo "yt-dlp refresh: ${YTDLP_REFRESH}" \
+    && uv lock --upgrade-package yt-dlp \
+    && uv sync --locked --no-dev --no-install-project \
+    && echo "yt-dlp $(yt-dlp --version)"
 
 COPY . .
 
-# Update yt-dlp on startup
-RUN echo '#!/bin/bash\n\
-echo "Updating yt-dlp..."\n\
-uv sync --upgrade-package yt-dlp\n\
-echo "Starting application..."\n\
-exec "$@"' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
-
 EXPOSE 8000
 
-ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

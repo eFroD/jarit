@@ -38,6 +38,7 @@ JarIt is an intelligent application that automatically extracts structured recip
 - [Configuration](#configuration)
   - [Encryption Key for Integration Credentials](#encryption-key-for-integration-credentials)
   - [Background Extraction and Database Migrations](#background-extraction-and-database-migrations)
+  - [Updates and yt-dlp](#updates-and-yt-dlp)
   - [Obtaining Mealie API Key](#obtaining-mealie-api-key)
 - [Usage](#usage)
   - [Language](#language)
@@ -328,6 +329,20 @@ For development, the same migrations are available through Alembic (uses `DATABA
 uv run alembic upgrade head                              # apply migrations
 uv run alembic revision --autogenerate -m "describe it"  # create a new migration after changing models
 ```
+
+### Updates and yt-dlp
+
+Video platforms change often, and yt-dlp follows within days. The backend image therefore always contains the newest yt-dlp at build time, and a scheduled workflow rebuilds the image of the latest release **every Monday** with the newest yt-dlp. It updates the `latest` and minor tags (e.g. `1.2`); exact version tags (e.g. `1.2.0`) stay as released.
+
+To pick these updates up, pull regularly, for example:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+or let a tool such as [Watchtower](https://containrrr.dev/watchtower/) do it. The container no longer updates yt-dlp at startup, so it starts without network access to PyPI.
+
+All other dependencies (Python, npm, Docker base images, GitHub Actions) are kept current by Dependabot pull requests against `dev`.
 
 ### Obtaining API Keys
 

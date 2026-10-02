@@ -54,6 +54,9 @@ jobs:
           file: ./Dockerfile.backend
           platforms: linux/amd64,linux/arm64
           push: true
+          # Always take the newest yt-dlp for a release (see Dockerfile.backend).
+          build-args: |
+            YTDLP_REFRESH=${{ github.run_id }}
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.repository }}/backend:buildcache
