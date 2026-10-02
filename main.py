@@ -16,7 +16,7 @@ logfire.instrument_pydantic_ai()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        os.getenv("DOMAIN_NAME","http://localhost"),
+        os.getenv("DOMAIN_NAME", "http://localhost"),
     ],
     allow_credentials=True,
     allow_methods=["*"],

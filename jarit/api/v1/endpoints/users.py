@@ -192,6 +192,7 @@ async def delete_api_key(
     db.delete(api_key)
     db.commit()
 
+
 @admin_router.get("/users", response_model=list[UserResponse])
 async def list_all_users(
     admin_user: User = Depends(admin_user_required), db: Session = Depends(get_db)
@@ -210,7 +211,9 @@ async def list_all_users(
     ]
 
 
-@admin_router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@admin_router.post(
+    "/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_new_user(
     user_data: UserCreate,
     admin_user: User = Depends(admin_user_required),
@@ -221,7 +224,9 @@ async def create_new_user(
         id=new_user.id,
         email=new_user.email,
         username=new_user.username,
-        role=new_user.role.value if isinstance(new_user.role, UserRole) else new_user.role,
+        role=new_user.role.value
+        if isinstance(new_user.role, UserRole)
+        else new_user.role,
         is_active=new_user.is_active,
         created_at=new_user.created_at,
     )
