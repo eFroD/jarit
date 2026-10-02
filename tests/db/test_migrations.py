@@ -10,7 +10,7 @@ from jarit.db.migrate import run_migrations
 from jarit.db.models.api_keys import APIKey
 from jarit.db.models.users import User
 
-HEAD = "0003_job_started_at"
+HEAD = "0004_user_language"
 
 
 @pytest.fixture
@@ -50,6 +50,8 @@ def test_empty_database_is_migrated_to_head(schema_engine):
 def test_legacy_create_all_database_keeps_its_data(schema_engine, caplog):
     Base.metadata.create_all(schema_engine, tables=[User.__table__, APIKey.__table__])
     with schema_engine.begin() as conn:
+        # The former create_all schema had no language column.
+        conn.execute(text("ALTER TABLE users DROP COLUMN language"))
         conn.execute(
             text(
                 "INSERT INTO users (email, username, hashed_password, role, is_active) "
@@ -134,3 +136,55 @@ def test_upgrade_from_0002_backfills_started_at(schema_engine):
         c["name"]: c for c in inspect(schema_engine).get_columns("extraction_jobs")
     }
     assert columns["started_at"]["nullable"] is False
+
+
+def test_upgrade_from_0003_sets_user_language_and_job_codes(schema_engine):
+    from alembic import command
+    from sqlalchemy.exc import IntegrityError
+
+    from jarit.db.migrate import _config
+
+    with schema_engine.begin() as conn:
+        command.upgrade(_config(conn), "0003_job_started_at")
+        conn.execute(
+            text(
+                "INSERT INTO users (email, username, hashed_password, role, is_active) "
+                "VALUES ('a@example.com', 'alice', 'x', 'USER', true)"
+            )
+        )
+        for language in ("english", "German", "italian", "japanese"):
+            conn.execute(
+                text(
+                    "INSERT INTO extraction_jobs "
+                    "(id, user_id, video_url, target_language) "
+                    "VALUES (:id, 1, :url, :language)"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "url": f"https://x/{language}",
+                    "language": language,
+                },
+            )
+
+    run_migrations(schema_engine)
+
+    assert revision(schema_engine) == HEAD
+    with schema_engine.connect() as conn:
+        assert conn.execute(text("SELECT language FROM users")).scalar_one() == "en"
+        languages = conn.execute(
+            text("SELECT video_url, target_language FROM extraction_jobs")
+        ).all()
+    assert dict(languages) == {
+        "https://x/english": "en",
+        "https://x/German": "de",
+        "https://x/italian": "it",
+        "https://x/japanese": "japanese",
+    }
+    with pytest.raises(IntegrityError), schema_engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO users "
+                "(email, username, hashed_password, role, is_active, language) "
+                "VALUES ('b@example.com', 'bob', 'x', 'USER', true, 'pt')"
+            )
+        )

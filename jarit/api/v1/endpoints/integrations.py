@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
+from jarit.api.errors import AppError, ErrorCode
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 import httpx
@@ -28,23 +29,26 @@ async def get_mealie_credentials(
     )
 
     if not api_key_entry:
-        raise HTTPException(
-            status_code=404,
-            detail="Mealie API key not configured. Please add your Mealie credentials first.",
+        raise AppError(
+            404,
+            ErrorCode.MEALIE_NOT_CONFIGURED,
+            "Mealie API key not configured. Please add your Mealie credentials first.",
         )
 
     if not api_key_entry.base_url:
-        raise HTTPException(
-            status_code=400,
-            detail="Mealie base URL not configured. Please update your Mealie credentials.",
+        raise AppError(
+            400,
+            ErrorCode.MEALIE_URL_NOT_CONFIGURED,
+            "Mealie base URL not configured. Please update your Mealie credentials.",
         )
 
     try:
         api_key = reveal_secret(db, api_key_entry)
     except SecretUnreadableError:
-        raise HTTPException(
-            status_code=409,
-            detail=(
+        raise AppError(
+            409,
+            ErrorCode.MEALIE_CREDENTIALS_UNREADABLE,
+            (
                 "Your stored Mealie credentials can no longer be read (the server's "
                 "encryption key has changed). Please enter your Mealie API key again "
                 "in the settings."
@@ -65,5 +69,9 @@ async def verify_user_mealie(mealie_creds: dict = Depends(get_mealie_credentials
     except httpx.HTTPStatusError as e:
         return JSONResponse(
             status_code=401,
-            content={"error": "Invalid Mealie credentials", "detail": e.response.text},
+            content={
+                "error": "Invalid Mealie credentials",
+                "detail": e.response.text,
+                "code": ErrorCode.MEALIE_INVALID_CREDENTIALS.value,
+            },
         )

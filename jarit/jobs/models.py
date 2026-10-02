@@ -4,7 +4,9 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, HttpUrl
+
+from jarit.languages import Language
 
 from jarit.models.output_models.recipe import RecipeResponse
 
@@ -49,15 +51,8 @@ STAGE_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
 
 class ExtractionJobCreate(BaseModel):
     url: HttpUrl
-    target_language: str = Field(default="english", max_length=64)
-
-    @field_validator("target_language")
-    @classmethod
-    def target_language_not_blank(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("target_language must not be empty")
-        return value
+    # None means the submitting user's language.
+    target_language: Language | None = None
 
 
 class ExtractionJobSummary(BaseModel):

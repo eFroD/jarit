@@ -7,10 +7,11 @@ like a missing one (404), for admins too.
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+from jarit.api.errors import AppError, ErrorCode
 from jarit.api.v1.endpoints.integrations import get_mealie_credentials
 from jarit.api.v1.endpoints.users import get_current_user
 from jarit.db.database import get_db
@@ -44,10 +45,10 @@ def get_owned_job_or_404(
     try:
         parsed = UUID(job_id)
     except ValueError:
-        raise HTTPException(status_code=404, detail=JOB_NOT_FOUND) from None
+        raise AppError(404, ErrorCode.JOB_NOT_FOUND, JOB_NOT_FOUND) from None
     job = repository.get_owned_job(db, current_user.id, parsed)
     if job is None:
-        raise HTTPException(status_code=404, detail=JOB_NOT_FOUND)
+        raise AppError(404, ErrorCode.JOB_NOT_FOUND, JOB_NOT_FOUND)
     return job
 
 
@@ -65,9 +66,8 @@ def submit_extraction(
     db: Session = Depends(get_db),
     runner: ExtractionRunner = Depends(get_runner),
 ):
-    job = repository.create_job(
-        db, current_user.id, str(request.url), request.target_language
-    )
+    language = request.target_language or current_user.language
+    job = repository.create_job(db, current_user.id, str(request.url), language)
     runner.submit(job.id)
     return job
 
@@ -91,8 +91,8 @@ def save_recipe(
     db: Session = Depends(get_db),
 ):
     if not repository.save_recipe(db, job.id, recipe):
-        raise HTTPException(
-            status_code=409, detail="Only completed extractions can be edited"
+        raise AppError(
+            409, ErrorCode.JOB_NOT_EDITABLE, "Only completed extractions can be edited"
         )
     return _reload(db, job)
 
@@ -104,8 +104,10 @@ async def upload_to_mealie(
     db: Session = Depends(get_db),
 ):
     if job.status != JobStatus.COMPLETED.value or not job.result:
-        raise HTTPException(
-            status_code=409, detail="Only completed extractions can be uploaded"
+        raise AppError(
+            409,
+            ErrorCode.JOB_NOT_UPLOADABLE,
+            "Only completed extractions can be uploaded",
         )
     recipe = Recipe.model_validate(job.result["recipe"])
     try:
@@ -115,9 +117,10 @@ async def upload_to_mealie(
             mealie_creds["api_key"],
         )
     except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=f"Mealie error: {e.response.text}",
+        raise AppError(
+            e.response.status_code,
+            ErrorCode.MEALIE_ERROR,
+            f"Mealie error: {e.response.text}",
         )
 
     await run_in_threadpool(repository.mark_uploaded, db, job.id)
@@ -136,8 +139,8 @@ def retry_extraction(
     runner: ExtractionRunner = Depends(get_runner),
 ):
     if not repository.retry_job(db, job.id):
-        raise HTTPException(
-            status_code=409, detail="Only failed extractions can be retried"
+        raise AppError(
+            409, ErrorCode.JOB_NOT_RETRYABLE, "Only failed extractions can be retried"
         )
     runner.submit(job.id)
     return _reload(db, job)
@@ -149,8 +152,9 @@ def delete_extraction(
     db: Session = Depends(get_db),
 ):
     if not repository.delete_finished_job(db, job.id):
-        raise HTTPException(
-            status_code=409,
-            detail="Wait until the extraction has finished before deleting it",
+        raise AppError(
+            409,
+            ErrorCode.JOB_NOT_DELETABLE,
+            "Wait until the extraction has finished before deleting it",
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

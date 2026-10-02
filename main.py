@@ -12,6 +12,7 @@ import logfire  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
+from jarit.api.errors import AppError, app_error_handler  # noqa: E402
 from jarit.api.router import router  # noqa: E402
 from jarit.db.database import SessionLocal, engine  # noqa: E402
 from jarit.db.migrate import run_migrations  # noqa: E402
@@ -75,4 +76,5 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+app.add_exception_handler(AppError, app_error_handler)
 app.include_router(router)

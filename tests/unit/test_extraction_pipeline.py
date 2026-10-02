@@ -3,7 +3,12 @@
 import os
 
 import pytest
-from pydantic_ai.messages import ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import (
+    ModelResponse,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 os.environ.setdefault("GOOGLE_API_KEY", "test-dummy")  # model is never called
@@ -66,7 +71,7 @@ async def run(tools):
         stages.append(stage)
 
     with video_agent.override(model=scripted_model(tools)):
-        response = await pipeline.extract(URL, "english", report)
+        response = await pipeline.extract(URL, "en", report)
     return response, stages
 
 
@@ -113,3 +118,31 @@ async def test_agent_runs_without_deps(loader):
     with video_agent.override(model=scripted_model(["get_description"])):
         result = await video_agent.run("extract")
     assert result.output.recipe.name == "Soup"
+
+
+async def prompt_for(language: str) -> str:
+    prompts = []
+
+    def respond(messages, info: AgentInfo) -> ModelResponse:
+        prompts.extend(
+            part.content
+            for part in messages[0].parts
+            if isinstance(part, UserPromptPart)
+        )
+        output = make_response("Soup").model_dump(mode="json", by_alias=True)
+        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, output)])
+
+    async def report(stage):
+        pass
+
+    with video_agent.override(model=FunctionModel(respond)):
+        await pipeline.extract(URL, language, report)
+    return prompts[0]
+
+
+async def test_prompt_names_the_language():
+    assert "The target language is German." in await prompt_for("de")
+
+
+async def test_prompt_passes_legacy_language_through():
+    assert "The target language is japanese." in await prompt_for("japanese")

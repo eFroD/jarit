@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 from jarit.db.models.users import UserRole
+from jarit.languages import Language
 
 
 class UserBase(BaseModel):
@@ -12,11 +13,13 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8)
     role: UserRole = UserRole.USER
+    language: Language = Language.EN
 
 
 class UserResponse(UserBase):
     id: int
     is_active: bool
+    language: Language
     created_at: datetime
 
     class Config:

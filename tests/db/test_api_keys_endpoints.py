@@ -90,6 +90,7 @@ def test_unreadable_secret_returns_409_and_app_keeps_working(client, db, user, c
     upload = client.post(f"{API}/extraction-jobs/{job.id}/upload-mealie")
     assert upload.status_code == 409
     assert "enter your Mealie API key again" in upload.json()["detail"]
+    assert upload.json()["code"] == "MEALIE_CREDENTIALS_UNREADABLE"
     assert "enc:v1:" not in upload.text
 
     assert client.get(f"{API}/integrations/verify-mealie-user").status_code == 409
