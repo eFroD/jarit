@@ -42,6 +42,11 @@
 			<div class="hidden items-center gap-4 md:flex">
 				{#if $user}
 					<span class="text-sm text-gray-700">Welcome, <strong>{$user.username}</strong></span>
+					<a
+						href={resolve('/history')}
+						class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 no-underline hover:bg-gray-100"
+						>History</a
+					>
 					{#if $user.role === 'ADMIN'}
 						<a
 							href={resolve('/admin')}
@@ -77,6 +82,12 @@
 			{#if $user}
 				<div class="space-y-2 px-4 py-4">
 					<span class="block text-sm text-gray-700">Welcome, <strong>{$user.username}</strong></span
+					>
+					<a
+						href={resolve('/history')}
+						on:click={toggleMobile}
+						class="block rounded-lg px-4 py-2 text-sm font-medium text-gray-700 no-underline hover:bg-gray-100"
+						>History</a
 					>
 					{#if $user.role === 'ADMIN'}
 						<a

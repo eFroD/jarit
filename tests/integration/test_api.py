@@ -1,8 +1,18 @@
-from unittest.mock import AsyncMock, patch
-from fastapi.testclient import TestClient
-from jarit.main import app
+"""End-to-end job flow against a real database, with the agent mocked.
 
-client = TestClient(app)
+Not collected by default (see tests/conftest.py); needs DATABASE_URL and the
+usual backend environment.
+"""
+
+import time
+from unittest.mock import AsyncMock, patch
+
+from fastapi.testclient import TestClient
+
+import main
+from jarit.api.v1.endpoints.users import get_current_user
+from jarit.db.database import SessionLocal
+from jarit.db.models.users import User, UserRole
 
 
 @patch("jarit.agents.video_agent.video_agent.run", new_callable=AsyncMock)
@@ -137,11 +147,39 @@ def test_extract_recipe(mock_run):
         },
     }
 
-    response = client.post(
-        "recipes/extract-recipe",
-        json={"url": "http://example.com/video", "target_language": "german"},
-    )
-    assert response.status_code == 200
-    assert "recipe" in response.json()
-    assert "suggested_version" in response.json()
-    assert "error_info" in response.json()
+    with SessionLocal() as db:
+        user = db.query(User).filter_by(username="integration").first()
+        if user is None:
+            user = User(
+                email="integration@example.com",
+                username="integration",
+                hashed_password="not-used",
+                role=UserRole.USER,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+    main.app.dependency_overrides[get_current_user] = lambda: user
+
+    try:
+        with TestClient(main.app) as client:
+            response = client.post(
+                "/api/v1/extraction-jobs",
+                json={"url": "http://example.com/video", "target_language": "german"},
+            )
+            assert response.status_code == 202
+            job_id = response.json()["id"]
+
+            for _ in range(50):
+                job = client.get(f"/api/v1/extraction-jobs/{job_id}").json()
+                if job["status"] in ("COMPLETED", "FAILED"):
+                    break
+                time.sleep(0.1)
+    finally:
+        main.app.dependency_overrides.clear()
+
+    assert job["status"] == "COMPLETED"
+    assert job["title"] == "Einfaches Thai Curry"
+    assert "recipe" in job["result"]
+    assert "suggested_version" in job["result"]
+    assert "error_info" in job["result"]

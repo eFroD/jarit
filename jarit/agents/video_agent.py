@@ -1,13 +1,61 @@
 """This agent obtains the description of a recipe and validates it against the pydantic standard for recipes."""
 
-from pydantic_ai import Agent
-from jarit.tools.video_loader import get_description, get_transcript
-from jarit.models.output_models import RecipeResponse
+import asyncio
+
+from pydantic_ai import Agent, RunContext
+
+from jarit.agents.deps import ExtractionDeps
 from jarit.agents.model_factory import create_model
+from jarit.jobs.errors import TranscriptionFailedError, VideoUnreachableError
+from jarit.jobs.models import JobStatus
+from jarit.models.input_models.video import VideoUrl
+from jarit.models.output_models import RecipeResponse
+from jarit.models.output_models.video import (
+    VideoDescriptionResponse,
+    VideoTranscriptResponse,
+)
+from jarit.tools import video_loader
+
+
+async def _report(ctx: RunContext[ExtractionDeps | None], stage: JobStatus) -> None:
+    # Runs without deps (e.g. tests/model_eval) simply skip progress reporting.
+    if ctx.deps is not None:
+        await ctx.deps.report(stage)
+
+
+async def get_description(
+    ctx: RunContext[ExtractionDeps | None], input: VideoUrl
+) -> VideoDescriptionResponse:
+    """Get video description and title with yt-dlp."""
+    await _report(ctx, JobStatus.FETCHING_DESCRIPTION)
+    try:
+        description = await asyncio.to_thread(video_loader.get_description, input)
+    except Exception as e:
+        raise VideoUnreachableError() from e
+    await _report(ctx, JobStatus.EXTRACTING)
+    return description
+
+
+async def get_transcript(
+    ctx: RunContext[ExtractionDeps | None], input: VideoUrl
+) -> VideoTranscriptResponse:
+    """
+    Extract audio using yt-dlp, transcribe it using OpenAI Whisper API.
+    Returns transcript text as a Pydantic model.
+    """
+    await _report(ctx, JobStatus.TRANSCRIBING)
+    try:
+        transcript = await asyncio.to_thread(video_loader.get_transcript, input)
+    except Exception as e:
+        raise TranscriptionFailedError() from e
+    await _report(ctx, JobStatus.EXTRACTING)
+    return transcript
+
 
 model = create_model()
 video_agent = Agent(
     model=model,
+    deps_type=ExtractionDeps | None,
     tools=[get_description, get_transcript],
     output_type=RecipeResponse,
     system_prompt="""You are a precise and cautious Recipe Extraction agent.

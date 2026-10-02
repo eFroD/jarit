@@ -1,27 +1,74 @@
 <!-- RecipePreview.svelte -->
 <script lang="ts">
-	import { api } from '$lib/api';
-	import { extractedRecipe, error, isLoading, mealieKey } from '$lib/store';
+	import { onMount } from 'svelte';
+	import { api, ApiError } from '$lib/api';
+	import {
+		currentJobId,
+		extractedRecipe,
+		suggestedRecipe,
+		error,
+		isLoading,
+		mealieKey
+	} from '$lib/store';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { Recipe } from '$lib/types';
+	import type { ExtractionJob, Recipe } from '$lib/types';
+
+	export let jobId: string;
 
 	let recipe: Recipe | null = null;
+	let job: ExtractionJob | null = null;
 	let showSuccessMessage = false;
+	let saving = false;
+	let loadError = '';
 
-	$: recipe = $extractedRecipe;
+	// Only the job named in the URL is editable; until it is loaded, nothing is shown.
+	$: recipe = job?.id === jobId && $currentJobId === jobId ? $extractedRecipe : null;
+	// Unsaved is derived from the data: edits kept in the store across navigation
+	// still count as unsaved when the job is opened again.
+	$: savedJson = job?.result?.recipe ? JSON.stringify(job.result.recipe) : null;
+	$: unsaved = !!recipe && savedJson !== null && JSON.stringify(recipe) !== savedJson;
+
+	onMount(async () => {
+		try {
+			const loaded = await api.getExtractionJob(jobId);
+			if (loaded.status !== 'COMPLETED' || !loaded.result?.recipe) {
+				goto(resolve('/(app)/jobs/[id]', { id: jobId }));
+				return;
+			}
+			job = loaded;
+			// Keep unsaved edits if this job is already in the editor (e.g. back navigation).
+			if ($currentJobId !== jobId || !$extractedRecipe) {
+				// A copy, so edits never change the saved version they are compared with.
+				extractedRecipe.set(structuredClone(loaded.result.recipe));
+				suggestedRecipe.set(loaded.result.suggested_version);
+				currentJobId.set(jobId);
+			}
+		} catch (err) {
+			loadError =
+				err instanceof ApiError && err.status === 404
+					? 'This extraction does not exist.'
+					: err instanceof Error
+						? err.message
+						: 'Could not load this extraction.';
+		}
+	});
+
+	function changed(updated: Recipe) {
+		extractedRecipe.set({ ...updated });
+	}
 
 	function editField(field: keyof Recipe, value: string) {
 		if (recipe) {
 			recipe = Object.assign(recipe, { [field]: value });
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
 	function editIngredient(index: number, value: string) {
 		if (recipe && recipe.recipeIngredient) {
 			recipe.recipeIngredient[index] = value;
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
@@ -29,14 +76,14 @@
 		if (recipe) {
 			if (!recipe.recipeIngredient) recipe.recipeIngredient = [];
 			recipe.recipeIngredient = [...recipe.recipeIngredient, ''];
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
 	function removeIngredient(index: number) {
 		if (recipe && recipe.recipeIngredient) {
 			recipe.recipeIngredient = recipe.recipeIngredient.filter((_, i) => i !== index);
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
@@ -46,7 +93,7 @@
 			if (instruction && '@type' in instruction && instruction['@type'] === 'HowToStep') {
 				instruction.text = value;
 				recipe.recipeInstructions = [...recipe.recipeInstructions];
-				extractedRecipe.set(recipe);
+				changed(recipe);
 			}
 		}
 	}
@@ -58,37 +105,60 @@
 				...recipe.recipeInstructions,
 				{ '@type': 'HowToStep', text: '' }
 			];
-			extractedRecipe.set(recipe);
+			changed(recipe);
 		}
 	}
 
 	function removeInstruction(index: number) {
 		if (recipe && recipe.recipeInstructions) {
 			recipe.recipeInstructions = recipe.recipeInstructions.filter((_, i) => i !== index);
-			extractedRecipe.set(recipe);
+			changed(recipe);
+		}
+	}
+
+	async function save(): Promise<boolean> {
+		if (!recipe || job?.id !== jobId) return false;
+		saving = true;
+		try {
+			job = await api.saveJobRecipe(jobId, recipe);
+			return true;
+		} catch {
+			return false;
+		} finally {
+			saving = false;
 		}
 	}
 
 	async function handleUpload() {
-		if (!recipe) return;
+		if (!recipe || job?.id !== jobId) return;
 
 		if (!$mealieKey) {
 			error.set('Please configure Mealie API key first');
 			return;
 		}
 
+		if (job?.uploaded_to_mealie_at) {
+			const when = new Date(job.uploaded_to_mealie_at).toLocaleString();
+			const again = confirm(
+				`This recipe was already uploaded on ${when}. Upload again? This creates another copy in Mealie.`
+			);
+			if (!again) return;
+		}
+
 		isLoading.set(true);
 		error.set(null);
 
 		try {
-			await api.uploadToMealie(recipe);
+			// The server uploads the stored version, so unsaved edits go first.
+			if (unsaved && !(await save())) return;
+			const result = await api.uploadJobToMealie(jobId);
+			if (job) job = { ...job, uploaded_to_mealie_at: result.uploaded_to_mealie_at };
 			showSuccessMessage = true;
 			error.set(null);
 
 			setTimeout(() => {
-				extractedRecipe.set(null);
 				showSuccessMessage = false;
-				goto(resolve('/dashboard'));
+				goto(resolve('/history'));
 			}, 2000);
 		} catch (err) {
 			error.set(err instanceof Error ? err.message : 'Upload failed');
@@ -98,8 +168,8 @@
 	}
 
 	function handleCancel() {
-		extractedRecipe.set(null);
-		goto(resolve('/dashboard'));
+		// The job stays in the history; only leave the editor.
+		goto(resolve('/history'));
 	}
 </script>
 
@@ -119,7 +189,7 @@
 		{#if showSuccessMessage}
 			<div class="rounded-lg border border-green-200 bg-green-50 p-6 text-center">
 				<p class="mb-2 font-medium text-green-800">✓ Recipe uploaded successfully!</p>
-				<p class="text-sm text-green-700">Redirecting to dashboard...</p>
+				<p class="text-sm text-green-700">Redirecting to your history...</p>
 			</div>
 		{/if}
 
@@ -359,6 +429,20 @@
 					</div>
 
 					<div class="space-y-2 border-t pt-4">
+						<p class="text-xs" class:text-gray-500={!unsaved} class:text-amber-600={unsaved}>
+							{unsaved ? 'Unsaved changes' : 'All changes saved'}
+							{#if job?.uploaded_to_mealie_at}
+								· In Mealie since {new Date(job.uploaded_to_mealie_at).toLocaleDateString()}
+							{/if}
+						</p>
+						<button
+							on:click={save}
+							type="button"
+							disabled={!unsaved || saving || $isLoading}
+							class="w-full rounded-lg bg-cyan-600 py-2 font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{saving ? 'Saving...' : 'Save changes'}
+						</button>
 						<button
 							on:click={handleUpload}
 							disabled={$isLoading}
@@ -372,15 +456,22 @@
 							disabled={$isLoading}
 							class="w-full rounded-lg bg-gray-300 py-2 font-medium text-gray-900 transition hover:bg-gray-400 disabled:opacity-50"
 						>
-							✗ Cancel
+							← Back to history
 						</button>
 					</div>
 				</div>
 			</div>
 		</div>
 	</div>
+{:else if loadError}
+	<div class="mx-auto max-w-xl rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+		<p class="mb-3 text-red-800">{loadError}</p>
+		<a href={resolve('/history')} class="font-medium text-cyan-700 hover:underline">
+			← Back to history
+		</a>
+	</div>
 {:else}
 	<div class="py-12 text-center">
-		<p class="text-gray-500">No recipe to preview</p>
+		<p class="text-gray-500">Loading…</p>
 	</div>
 {/if}

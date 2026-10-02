@@ -19,7 +19,9 @@ JarIt is an intelligent application that automatically extracts structured recip
 - **Audio Transcription** - Automatic video transcription using OpenAI Whisper
 - **Smart Recipe Parsing** - Extracts ingredients, instructions, timing, and metadata
 - **Multi-Language** - Translate recipes to your preferred language during extraction
-- **Recipe Editor** - Review and edit extracted recipes before uploading
+- **Background Extraction** - Extraction runs in the background with live progress; leave the page and come back any time
+- **Extraction History** - Every extraction is kept: reopen, edit and upload recipes later, see which ones are already in Mealie
+- **Recipe Editor** - Review and edit extracted recipes before uploading; edits are saved
 - **Mealie Integration** - One-click upload to your Mealie instance
 - **Multi-User Support** - User authentication with admin panel
 - **Secure** - JWT authentication, role-based access, and users' integration credentials (e.g. Mealie API keys) encrypted at rest
@@ -35,6 +37,7 @@ JarIt is an intelligent application that automatically extracts structured recip
   - [Development Setup](#development-setup)
 - [Configuration](#configuration)
   - [Encryption Key for Integration Credentials](#encryption-key-for-integration-credentials)
+  - [Background Extraction and Database Migrations](#background-extraction-and-database-migrations)
   - [Obtaining Mealie API Key](#obtaining-mealie-api-key)
 - [Usage](#usage)
 - [Contributing](#contributing)
@@ -114,6 +117,7 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       - SECRET_KEY=${SECRET_KEY}
       - JARIT_ENCRYPTION_KEY=${JARIT_ENCRYPTION_KEY}
+      - JARIT_MAX_CONCURRENT_EXTRACTIONS=${JARIT_MAX_CONCURRENT_EXTRACTIONS:-2}
       - ALGORITHM=${ALGORITHM:-HS256}
     command: uv run uvicorn main:app --host 0.0.0.0 --port 8000
     depends_on:
@@ -163,6 +167,9 @@ ALGORITHM=HS256
 
 # Encryption of user integration credentials - required, see below
 JARIT_ENCRYPTION_KEY=CHANGEME
+
+# Maximum number of extractions running at the same time (default 2)
+JARIT_MAX_CONCURRENT_EXTRACTIONS=2
 
 # PostgreSQL settings - Change credentials
 POSTGRES_DB=devdb
@@ -263,6 +270,9 @@ ALGORITHM=HS256
 # Encryption of users' integration credentials (required)
 JARIT_ENCRYPTION_KEY=your_generated_key
 
+# Recipe extraction
+JARIT_MAX_CONCURRENT_EXTRACTIONS=2   # Extractions running at the same time; more wait their turn
+
 
 POSTGRES_DB=devdb
 POSTGRES_USER=devuser
@@ -299,6 +309,24 @@ If the key is missing or invalid, the backend does not start. Instead it prints 
 **Rotating or losing the key:** JarIt uses exactly one key and does not re-encrypt existing data. If you change or lose it, all stored integration credentials become unreadable. The app keeps working, and affected users see a message asking them to enter their Mealie API key again in the settings. There is no way to recover the old values without the old key.
 
 **Upgrading from an earlier version:** Older versions stored integration credentials in plain text. Set `JARIT_ENCRYPTION_KEY` before upgrading. On the first start, JarIt encrypts all existing credentials automatically, and users do not need to do anything.
+
+### Background Extraction and Database Migrations
+
+Extractions run as background jobs **inside the backend process** – no extra worker, queue or cache service is needed. Keep this in mind:
+
+- **Run the backend as a single process.** Do not start uvicorn with `--workers` greater than 1; the provided compose files already run one process.
+- **`JARIT_MAX_CONCURRENT_EXTRACTIONS`** (default `2`) limits how many extractions run at the same time. Further jobs wait in submission order. An invalid value falls back to `2` with a warning in the log.
+- **Restarts interrupt running jobs.** Jobs that were waiting or running when the backend stopped are marked as failed ("Interrupted by an application restart") on the next start. Users can start them again with one click.
+- An extraction that takes longer than 10 minutes is stopped and marked as timed out.
+
+**Database migrations run automatically** when the backend starts, before it accepts requests. Upgrading needs no manual steps: pull the new image and restart. Installations created by an older version (without migration history) are detected and brought under migration control without data loss. As with any upgrade, **back up your database first**.
+
+For development, the same migrations are available through Alembic (uses `DATABASE_URL`):
+
+```bash
+uv run alembic upgrade head                              # apply migrations
+uv run alembic revision --autogenerate -m "describe it"  # create a new migration after changing models
+```
 
 ### Obtaining API Keys
 
@@ -387,10 +415,16 @@ Log in with your Mealie credentials
 1. **Navigate to Dashboard**
 2. **Paste a video URL** (YouTube, TikTok, Instagram, etc.)
 3. **Select target language** (optional - defaults to English)
-4. **Click "Extract Recipe"**
-5. Wait for AI to process (10-60 seconds depending on video length)
-6. **Review and edit** the extracted recipe
+4. **Click "Extract Recipe"** – you are taken to a progress page right away
+5. Follow the steps (fetching the description, transcribing audio if needed, extracting the recipe). This usually takes 10-60 seconds; you can leave the page and come back via the dashboard or **History**
+6. **Review and edit** the extracted recipe – use **Save changes** to keep your edits
 7. **Upload to Mealie** with one click!
+
+If an extraction fails, the progress page and the history show the reason (e.g. "Video unreachable") and a **Try again** button.
+
+### History
+
+**History** in the navigation lists all your extractions, newest first, with their status and whether the recipe is already in Mealie. From there you can reopen and edit a recipe, upload it (again), retry failed extractions, or delete entries. Each user only ever sees their own extractions, admins included. Deleting an entry does not remove the recipe from Mealie.
 
 ### Admin Panel
 

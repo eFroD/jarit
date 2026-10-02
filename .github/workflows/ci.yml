@@ -56,7 +56,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Tests
-        run: uv run pytest -q
+        run: uv run pytest -q --cov=jarit --cov=main --cov-report=term-missing --cov-fail-under=80
 
   frontend:
     runs-on: ubuntu-latest
