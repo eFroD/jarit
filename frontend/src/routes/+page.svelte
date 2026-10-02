@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { authToken } from '$lib/store';
 	import { get } from 'svelte/store';
+	import { t } from '$lib/i18n';
 
 	onMount(() => {
 		const token = get(authToken);
@@ -16,5 +17,5 @@
 </script>
 
 <div class="flex min-h-screen items-center justify-center">
-	<p class="text-gray-500">Loading...</p>
+	<p class="text-gray-500">{$t.common_loading}</p>
 </div>

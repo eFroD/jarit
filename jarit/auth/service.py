@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
+from fastapi import status
+from jarit.api.errors import AppError, ErrorCode
 from sqlalchemy import func
 from jarit.core.security import get_password_hash, verify_password
 from ..db.models.users import User, UserRole
@@ -32,19 +33,24 @@ def create_user(db: Session, user: UserCreate, current_user: User | None = None)
         db_role = UserRole(user.role)
 
     else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Registration is disabled. Admin privileges required to create new users.",
+        raise AppError(
+            status.HTTP_403_FORBIDDEN,
+            ErrorCode.REGISTRATION_DISABLED,
+            "Registration is disabled. Admin privileges required to create new users.",
         )
 
     # Check if user exists
     if get_user_by_email(db, user.email):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
+        raise AppError(
+            status.HTTP_400_BAD_REQUEST,
+            ErrorCode.EMAIL_TAKEN,
+            "Email already registered",
         )
     if get_user_by_username(db, user.username):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
+        raise AppError(
+            status.HTTP_400_BAD_REQUEST,
+            ErrorCode.USERNAME_TAKEN,
+            "Username already taken",
         )
 
     db_user = User(
@@ -52,6 +58,7 @@ def create_user(db: Session, user: UserCreate, current_user: User | None = None)
         username=user.username,
         hashed_password=get_password_hash(user.password),
         role=db_role.value,
+        language=user.language.value,
     )
     db.add(db_user)
     db.commit()

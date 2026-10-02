@@ -2,6 +2,8 @@
 
 import { authToken, error } from './store';
 import { get } from 'svelte/store';
+import { ApiError } from './errors';
+import { errorMessage, t, type Locale } from './i18n';
 import type {
 	User,
 	APIKey,
@@ -17,16 +19,22 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api/v1'
 
 // ============ HTTP REQUEST HELPER ============
 
-/**
- * Error thrown for non-2xx responses; keeps the HTTP status for callers
- */
-export class ApiError extends Error {
-	constructor(
-		message: string,
-		public status: number
-	) {
-		super(message);
+export { ApiError };
+
+// 401 codes that mean the JarIt session itself is invalid (others, e.g. Mealie's, do not log out).
+const SESSION_CODES = new Set(['INVALID_TOKEN', 'USER_NOT_FOUND']);
+
+async function toApiError(response: Response): Promise<ApiError> {
+	let detail = response.statusText || 'Request failed';
+	let code: string | undefined;
+	try {
+		const body = await response.json();
+		if (typeof body.detail === 'string') detail = body.detail;
+		if (typeof body.code === 'string') code = body.code;
+	} catch {
+		// no JSON body
 	}
+	return new ApiError(detail, response.status, code);
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -47,32 +55,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 			headers
 		});
 
-		// Handle unauthorized
-		if (response.status === 401) {
-			authToken.set(null);
-			error.set('Session expired. Please login again.');
-			throw new Error('Unauthorized');
-		}
-
 		if (!response.ok) {
-			let errorMsg = 'Request failed';
-
-			try {
-				const errorData = await response.json();
-				if (errorData.detail) {
-					if (Array.isArray(errorData.detail)) {
-						errorMsg = errorData.detail[0]?.msg || errorData.detail[0] || errorMsg;
-					} else {
-						errorMsg = errorData.detail;
-					}
-				} else if (errorData.message) {
-					errorMsg = errorData.message;
-				}
-			} catch {
-				errorMsg = response.statusText || errorMsg;
+			const err = await toApiError(response);
+			if (err.status === 401 && (!err.code || SESSION_CODES.has(err.code))) {
+				authToken.set(null);
 			}
-
-			throw new ApiError(errorMsg, response.status);
+			throw err;
 		}
 
 		if (response.status === 204) {
@@ -81,8 +69,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 		return await response.json();
 	} catch (err) {
-		const msg = err instanceof Error ? err.message : 'Unknown error occurred';
-		error.set(msg);
+		error.set(errorMessage(err, get(t)));
 		throw err;
 	}
 }
@@ -93,10 +80,15 @@ export const api = {
 	/**
 	 * Register a new user
 	 */
-	async register(email: string, username: string, password: string): Promise<RegisterResponse> {
+	async register(
+		email: string,
+		username: string,
+		password: string,
+		language: Locale
+	): Promise<RegisterResponse> {
 		return request<RegisterResponse>('/auth/register', {
 			method: 'POST',
-			body: JSON.stringify({ email, username, password })
+			body: JSON.stringify({ email, username, password, language })
 		});
 	},
 
@@ -116,13 +108,12 @@ export const api = {
 			});
 
 			if (!response.ok) {
-				throw new Error('Invalid username or password');
+				throw await toApiError(response);
 			}
 
 			return await response.json();
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : 'Login failed';
-			error.set(msg);
+			error.set(errorMessage(err, get(t)));
 			throw err;
 		}
 	},
@@ -132,6 +123,45 @@ export const api = {
 	 */
 	getCurrentUser(): Promise<User> {
 		return request<User>('/users/me');
+	},
+
+	/**
+	 * Change the current user's language
+	 */
+	updateMe(language: Locale): Promise<User> {
+		return request<User>('/users/me', {
+			method: 'PATCH',
+			body: JSON.stringify({ language })
+		});
+	},
+
+	/**
+	 * All users (admin only)
+	 */
+	listUsers(): Promise<User[]> {
+		return request<User[]>('/admin/users');
+	},
+
+	/**
+	 * Create a user (admin only)
+	 */
+	createUser(newUser: {
+		email: string;
+		username: string;
+		password: string;
+		role: string;
+	}): Promise<User> {
+		return request<User>('/admin/users', {
+			method: 'POST',
+			body: JSON.stringify(newUser)
+		});
+	},
+
+	/**
+	 * Delete a user (admin only)
+	 */
+	deleteUser(id: number): Promise<void> {
+		return request<void>(`/admin/users/${id}`, { method: 'DELETE' });
 	},
 
 	/**
@@ -167,13 +197,11 @@ export const api = {
 	/**
 	 * Submit a video URL for extraction; returns the queued job immediately
 	 */
-	createExtractionJob(url: string, targetLanguage: string = 'english'): Promise<ExtractionJob> {
+	createExtractionJob(url: string, targetLanguage?: Locale): Promise<ExtractionJob> {
+		// Without a language the server uses the user's own language.
 		return request<ExtractionJob>('/extraction-jobs', {
 			method: 'POST',
-			body: JSON.stringify({
-				url,
-				target_language: targetLanguage
-			})
+			body: JSON.stringify(targetLanguage ? { url, target_language: targetLanguage } : { url })
 		});
 	},
 

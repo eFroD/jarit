@@ -18,12 +18,12 @@ from jarit.jobs.runner import DbJobStore, ExtractionRunner
 from tests.factories import make_response, recipe_dict
 
 JOBS = "/api/v1/extraction-jobs"
-NOT_FOUND = {"detail": "Extraction job not found"}
+NOT_FOUND = {"detail": "Extraction job not found", "code": "JOB_NOT_FOUND"}
 PUSH = "jarit.api.v1.endpoints.extraction_jobs.push_recipe_to_mealie"
 
 
 def queued_job(db, user, url="https://example.com/v"):
-    return repository.create_job(db, user.id, url, "english")
+    return repository.create_job(db, user.id, url, "en")
 
 
 def completed_job(db, user, name="Soup"):
@@ -57,21 +57,42 @@ def store_mealie_credentials(db, user):
 
 def test_submit_returns_queued_job_immediately(client, db, fake_runner):
     response = client.post(
-        JOBS, json={"url": "https://example.com/reel/1", "target_language": "german"}
+        JOBS, json={"url": "https://example.com/reel/1", "target_language": "de"}
     )
 
     assert response.status_code == 202
     body = response.json()
     assert body["status"] == "QUEUED"
     assert body["video_url"] == "https://example.com/reel/1"
-    assert body["target_language"] == "german"
+    assert body["target_language"] == "de"
     assert body["result"] is None
     assert fake_runner.submitted == [uuid.UUID(body["id"])]
 
 
-def test_target_language_defaults_to_english(client):
-    response = client.post(JOBS, json={"url": "https://example.com/reel/1"})
-    assert response.json()["target_language"] == "english"
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"url": "https://example.com/reel/1"},
+        {"url": "https://example.com/reel/1", "target_language": None},
+    ],
+)
+def test_target_language_defaults_to_user_language(client, db, user, payload):
+    user.language = "fr"
+    db.commit()
+
+    response = client.post(JOBS, json=payload)
+
+    assert response.status_code == 202
+    assert response.json()["target_language"] == "fr"
+
+
+def test_user_language_change_keeps_job_language(client, db, user):
+    job = client.post(
+        JOBS, json={"url": "https://example.com/reel/1", "target_language": "de"}
+    ).json()
+
+    assert client.patch("/api/v1/users/me", json={"language": "it"}).status_code == 200
+    assert client.get(f"{JOBS}/{job['id']}").json()["target_language"] == "de"
 
 
 @pytest.mark.parametrize(
@@ -79,6 +100,8 @@ def test_target_language_defaults_to_english(client):
     [
         {"url": "not a url"},
         {"url": "https://example.com/v", "target_language": "   "},
+        {"url": "https://example.com/v", "target_language": "english"},
+        {"url": "https://example.com/v", "target_language": "japanese"},
         {"url": "https://example.com/v", "target_language": "x" * 65},
     ],
 )
@@ -205,7 +228,10 @@ def test_retry_is_refused_unless_failed(client, db, user, fake_runner):
     for job in (queued_job(db, user), running_job(db, user), completed_job(db, user)):
         response = client.post(f"{JOBS}/{job.id}/retry")
         assert response.status_code == 409
-        assert response.json() == {"detail": "Only failed extractions can be retried"}
+        assert response.json() == {
+            "detail": "Only failed extractions can be retried",
+            "code": "JOB_NOT_RETRYABLE",
+        }
 
     failed = failed_job(db, user)
     assert client.post(f"{JOBS}/{failed.id}/retry").status_code == 202
@@ -311,6 +337,7 @@ def test_delete_refused_while_waiting_or_running(client, db, user):
         response = client.delete(f"{JOBS}/{job.id}")
         assert response.status_code == 409
         assert "Wait until the extraction has finished" in response.json()["detail"]
+        assert response.json()["code"] == "JOB_NOT_DELETABLE"
 
 
 def test_status_values_match_contract():

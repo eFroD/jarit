@@ -1,7 +1,9 @@
 <!-- RecipePreview.svelte -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { api, ApiError } from '$lib/api';
+	import { api } from '$lib/api';
+	import { errorMessage, locale, t } from '$lib/i18n';
+	import { formatDate, formatDateTime } from '$lib/i18n/format';
 	import {
 		currentJobId,
 		extractedRecipe,
@@ -45,12 +47,7 @@
 				currentJobId.set(jobId);
 			}
 		} catch (err) {
-			loadError =
-				err instanceof ApiError && err.status === 404
-					? 'This extraction does not exist.'
-					: err instanceof Error
-						? err.message
-						: 'Could not load this extraction.';
+			loadError = errorMessage(err, $t);
 		}
 	});
 
@@ -133,15 +130,13 @@
 		if (!recipe || job?.id !== jobId) return;
 
 		if (!$mealieKey) {
-			error.set('Please configure Mealie API key first');
+			error.set($t.editor_mealieMissing);
 			return;
 		}
 
 		if (job?.uploaded_to_mealie_at) {
-			const when = new Date(job.uploaded_to_mealie_at).toLocaleString();
-			const again = confirm(
-				`This recipe was already uploaded on ${when}. Upload again? This creates another copy in Mealie.`
-			);
+			const date = formatDateTime(job.uploaded_to_mealie_at, $locale);
+			const again = confirm($t.editor_confirmReupload({ date }));
 			if (!again) return;
 		}
 
@@ -161,7 +156,7 @@
 				goto(resolve('/history'));
 			}, 2000);
 		} catch (err) {
-			error.set(err instanceof Error ? err.message : 'Upload failed');
+			error.set(errorMessage(err, $t));
 		} finally {
 			isLoading.set(false);
 		}
@@ -176,27 +171,27 @@
 {#if recipe}
 	<div class="space-y-6">
 		<div class="flex items-center justify-between">
-			<h1 class="text-3xl font-bold text-gray-900">Review & Edit Recipe</h1>
+			<h1 class="text-3xl font-bold text-gray-900">{$t.editor_title}</h1>
 			<button
 				on:click={handleCancel}
 				type="button"
 				class="rounded-lg bg-gray-300 px-4 py-2 font-medium text-gray-900 transition hover:bg-gray-400"
 			>
-				← Back
+				{$t.editor_back}
 			</button>
 		</div>
 
 		{#if showSuccessMessage}
 			<div class="rounded-lg border border-green-200 bg-green-50 p-6 text-center">
-				<p class="mb-2 font-medium text-green-800">✓ Recipe uploaded successfully!</p>
-				<p class="text-sm text-green-700">Redirecting to your history...</p>
+				<p class="mb-2 font-medium text-green-800">{$t.editor_uploadSuccess}</p>
+				<p class="text-sm text-green-700">{$t.editor_redirecting}</p>
 			</div>
 		{/if}
 
 		{#if $error}
 			<div class="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
 				<p class="text-yellow-800">
-					<strong>⚠ Warning:</strong>
+					<strong>⚠ {$t.common_warning}</strong>
 					{$error}
 				</p>
 			</div>
@@ -207,10 +202,10 @@
 			<div class="order-2 space-y-6 lg:order-1 lg:col-span-2">
 				<!-- Recipe Metadata -->
 				<div class="space-y-4 rounded-lg bg-white p-6 shadow-md">
-					<h2 class="border-b pb-3 text-xl font-bold text-gray-900">Recipe Metadata</h2>
+					<h2 class="border-b pb-3 text-xl font-bold text-gray-900">{$t.editor_metadata}</h2>
 
 					<div>
-						<label class="mb-2 block text-sm font-medium text-gray-700">Recipe Name</label>
+						<label class="mb-2 block text-sm font-medium text-gray-700">{$t.editor_name}</label>
 						<input
 							type="text"
 							value={recipe.name}
@@ -220,7 +215,9 @@
 					</div>
 
 					<div>
-						<label class="mb-2 block text-sm font-medium text-gray-700">Description</label>
+						<label class="mb-2 block text-sm font-medium text-gray-700"
+							>{$t.editor_description}</label
+						>
 						<textarea
 							value={recipe.description || ''}
 							on:change={(e) => editField('description', e.currentTarget.value)}
@@ -231,22 +228,25 @@
 
 					<div class="grid grid-cols-2 gap-4">
 						<div>
-							<label class="mb-2 block text-sm font-medium text-gray-700">Category</label>
+							<label class="mb-2 block text-sm font-medium text-gray-700"
+								>{$t.editor_category}</label
+							>
 							<input
 								type="text"
 								value={recipe.recipeCategory || ''}
 								on:change={(e) => editField('recipeCategory', e.currentTarget.value)}
-								placeholder="e.g., Breakfast"
+								placeholder={$t.editor_categoryPlaceholder}
 								class="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-cyan-500"
 							/>
 						</div>
 						<div>
-							<label class="mb-2 block text-sm font-medium text-gray-700">Cuisine</label>
+							<label class="mb-2 block text-sm font-medium text-gray-700">{$t.editor_cuisine}</label
+							>
 							<input
 								type="text"
 								value={recipe.recipeCuisine || ''}
 								on:change={(e) => editField('recipeCuisine', e.currentTarget.value)}
-								placeholder="e.g., Italian"
+								placeholder={$t.editor_cuisinePlaceholder}
 								class="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-cyan-500"
 							/>
 						</div>
@@ -255,11 +255,13 @@
 
 				<!-- Timing -->
 				<div class="space-y-4 rounded-lg bg-white p-6 shadow-md">
-					<h2 class="border-b pb-3 text-xl font-bold text-gray-900">Timing & Yield</h2>
+					<h2 class="border-b pb-3 text-xl font-bold text-gray-900">{$t.editor_timing}</h2>
 
 					<div class="grid grid-cols-3 gap-4">
 						<div>
-							<label class="mb-2 block text-sm font-medium text-gray-700">Prep Time</label>
+							<label class="mb-2 block text-sm font-medium text-gray-700"
+								>{$t.editor_prepTime}</label
+							>
 							<input
 								type="text"
 								value={recipe.prepTime || ''}
@@ -267,10 +269,12 @@
 								placeholder="PT15M"
 								class="w-full rounded-lg border border-gray-300 px-4 py-2 font-mono text-sm focus:border-transparent focus:ring-2 focus:ring-cyan-500"
 							/>
-							<p class="mt-1 text-xs text-gray-500">ISO 8601 format</p>
+							<p class="mt-1 text-xs text-gray-500">{$t.editor_isoHint}</p>
 						</div>
 						<div>
-							<label class="mb-2 block text-sm font-medium text-gray-700">Cook Time</label>
+							<label class="mb-2 block text-sm font-medium text-gray-700"
+								>{$t.editor_cookTime}</label
+							>
 							<input
 								type="text"
 								value={recipe.cookTime || ''}
@@ -280,12 +284,12 @@
 							/>
 						</div>
 						<div>
-							<label class="mb-2 block text-sm font-medium text-gray-700">Yield</label>
+							<label class="mb-2 block text-sm font-medium text-gray-700">{$t.editor_yield}</label>
 							<input
 								type="text"
 								value={recipe.recipeYield || ''}
 								on:change={(e) => editField('recipeYield', e.currentTarget.value)}
-								placeholder="4 servings"
+								placeholder={$t.editor_yieldPlaceholder}
 								class="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-cyan-500"
 							/>
 						</div>
@@ -295,13 +299,13 @@
 				<!-- Ingredients -->
 				<div class="space-y-4 rounded-lg bg-white p-6 shadow-md">
 					<div class="flex items-center justify-between border-b pb-3">
-						<h2 class="text-xl font-bold text-gray-900">Ingredients</h2>
+						<h2 class="text-xl font-bold text-gray-900">{$t.editor_ingredients}</h2>
 						<button
 							type="button"
 							on:click={addIngredient}
 							class="rounded bg-cyan-100 px-3 py-1 text-xs font-medium text-cyan-700 hover:bg-cyan-200"
 						>
-							+ Add
+							{$t.editor_add}
 						</button>
 					</div>
 
@@ -318,6 +322,7 @@
 									<button
 										type="button"
 										on:click={() => removeIngredient(i)}
+										aria-label={$t.editor_remove}
 										class="px-3 py-2 font-medium text-red-600 hover:text-red-800"
 									>
 										✕
@@ -325,7 +330,7 @@
 								</div>
 							{/each}
 						{:else}
-							<p class="py-4 text-sm text-gray-500">No ingredients added</p>
+							<p class="py-4 text-sm text-gray-500">{$t.editor_noIngredients}</p>
 						{/if}
 					</div>
 				</div>
@@ -333,13 +338,13 @@
 				<!-- Instructions -->
 				<div class="space-y-4 rounded-lg bg-white p-6 shadow-md">
 					<div class="flex items-center justify-between border-b pb-3">
-						<h2 class="text-xl font-bold text-gray-900">Instructions</h2>
+						<h2 class="text-xl font-bold text-gray-900">{$t.editor_instructions}</h2>
 						<button
 							type="button"
 							on:click={addInstruction}
 							class="rounded bg-cyan-100 px-3 py-1 text-xs font-medium text-cyan-700 hover:bg-cyan-200"
 						>
-							+ Add Step
+							{$t.editor_addStep}
 						</button>
 					</div>
 
@@ -358,11 +363,12 @@
 											on:change={(e) => editInstruction(i, e.currentTarget.value)}
 											rows="2"
 											class="flex-1 resize-none rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-cyan-500"
-											placeholder="Enter step instructions..."
+											placeholder={$t.editor_stepPlaceholder}
 										/>
 										<button
 											type="button"
 											on:click={() => removeInstruction(i)}
+											aria-label={$t.editor_remove}
 											class="px-3 py-2 font-medium text-red-600 hover:text-red-800"
 										>
 											✕
@@ -371,7 +377,7 @@
 								{/if}
 							{/each}
 						{:else}
-							<p class="py-4 text-sm text-gray-500">No instructions added</p>
+							<p class="py-4 text-sm text-gray-500">{$t.editor_noInstructions}</p>
 						{/if}
 					</div>
 				</div>
@@ -380,7 +386,7 @@
 			<!-- Preview Sidebar -->
 			<div class="order-1 lg:sticky lg:top-20 lg:col-span-1 lg:max-h-screen lg:overflow-y-auto">
 				<div class="sticky top-20 space-y-4 rounded-lg bg-white p-6 shadow-md">
-					<h3 class="text-lg font-bold text-gray-900">Preview</h3>
+					<h3 class="text-lg font-bold text-gray-900">{$t.editor_preview}</h3>
 
 					{#if recipe.image}
 						<img
@@ -392,47 +398,53 @@
 
 					<div class="space-y-3 text-sm">
 						<div>
-							<p class="font-semibold text-gray-700">Name</p>
-							<p class="break-words text-gray-600">{recipe.name || 'Untitled'}</p>
+							<p class="font-semibold text-gray-700">{$t.editor_previewName}</p>
+							<p class="break-words text-gray-600">{recipe.name || $t.editor_untitled}</p>
 						</div>
 
 						{#if recipe.recipeCategory}
 							<div>
-								<p class="font-semibold text-gray-700">Category</p>
+								<p class="font-semibold text-gray-700">{$t.editor_category}</p>
 								<p class="text-gray-600">{recipe.recipeCategory}</p>
 							</div>
 						{/if}
 
 						{#if recipe.recipeCuisine}
 							<div>
-								<p class="font-semibold text-gray-700">Cuisine</p>
+								<p class="font-semibold text-gray-700">{$t.editor_cuisine}</p>
 								<p class="text-gray-600">{recipe.recipeCuisine}</p>
 							</div>
 						{/if}
 
 						{#if recipe.recipeYield}
 							<div>
-								<p class="font-semibold text-gray-700">Yield</p>
+								<p class="font-semibold text-gray-700">{$t.editor_yield}</p>
 								<p class="text-gray-600">{recipe.recipeYield}</p>
 							</div>
 						{/if}
 
 						<div>
-							<p class="font-semibold text-gray-700">Ingredients</p>
-							<p class="text-gray-600">{recipe.recipeIngredient?.length || 0} items</p>
+							<p class="font-semibold text-gray-700">{$t.editor_ingredients}</p>
+							<p class="text-gray-600">
+								{$t.editor_ingredientCount({ count: recipe.recipeIngredient?.length || 0 })}
+							</p>
 						</div>
 
 						<div>
-							<p class="font-semibold text-gray-700">Instructions</p>
-							<p class="text-gray-600">{recipe.recipeInstructions?.length || 0} steps</p>
+							<p class="font-semibold text-gray-700">{$t.editor_instructions}</p>
+							<p class="text-gray-600">
+								{$t.editor_stepCount({ count: recipe.recipeInstructions?.length || 0 })}
+							</p>
 						</div>
 					</div>
 
 					<div class="space-y-2 border-t pt-4">
 						<p class="text-xs" class:text-gray-500={!unsaved} class:text-amber-600={unsaved}>
-							{unsaved ? 'Unsaved changes' : 'All changes saved'}
+							{unsaved ? $t.editor_unsaved : $t.editor_allSaved}
 							{#if job?.uploaded_to_mealie_at}
-								· In Mealie since {new Date(job.uploaded_to_mealie_at).toLocaleDateString()}
+								· {$t.editor_inMealieSince({
+									date: formatDate(job.uploaded_to_mealie_at, $locale)
+								})}
 							{/if}
 						</p>
 						<button
@@ -441,14 +453,14 @@
 							disabled={!unsaved || saving || $isLoading}
 							class="w-full rounded-lg bg-cyan-600 py-2 font-medium text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
 						>
-							{saving ? 'Saving...' : 'Save changes'}
+							{saving ? $t.common_saving : $t.editor_save}
 						</button>
 						<button
 							on:click={handleUpload}
 							disabled={$isLoading}
 							class="w-full rounded-lg bg-green-600 py-2 font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
 						>
-							{$isLoading ? 'Uploading...' : '✓ Upload to Mealie'}
+							{$isLoading ? $t.editor_uploading : $t.editor_upload}
 						</button>
 						<button
 							on:click={handleCancel}
@@ -456,7 +468,7 @@
 							disabled={$isLoading}
 							class="w-full rounded-lg bg-gray-300 py-2 font-medium text-gray-900 transition hover:bg-gray-400 disabled:opacity-50"
 						>
-							← Back to history
+							{$t.common_backToHistory}
 						</button>
 					</div>
 				</div>
@@ -467,11 +479,11 @@
 	<div class="mx-auto max-w-xl rounded-lg border border-red-200 bg-red-50 p-6 text-center">
 		<p class="mb-3 text-red-800">{loadError}</p>
 		<a href={resolve('/history')} class="font-medium text-cyan-700 hover:underline">
-			← Back to history
+			{$t.common_backToHistory}
 		</a>
 	</div>
 {:else}
 	<div class="py-12 text-center">
-		<p class="text-gray-500">Loading…</p>
+		<p class="text-gray-500">{$t.common_loading}</p>
 	</div>
 {/if}

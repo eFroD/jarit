@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
+from jarit.api.errors import AppError, ErrorCode
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, field_validator
 from datetime import datetime
@@ -13,6 +14,7 @@ from jarit.core.security import (
 from jarit.auth.service import get_user_by_username, create_user
 from jarit.auth.schemas import UserCreate
 from jarit.integrations.credentials import set_secret
+from jarit.languages import Language
 
 
 async def get_current_user(
@@ -20,12 +22,12 @@ async def get_current_user(
 ):
     payload = decode_token(token)
     if not payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise AppError(401, ErrorCode.INVALID_TOKEN, "Invalid token")
 
     username = payload.get("sub")
     user = get_user_by_username(db, username)
     if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+        raise AppError(401, ErrorCode.USER_NOT_FOUND, "User not found")
 
     return user
 
@@ -55,7 +57,7 @@ async def admin_user_required(
     current_user: User | None = Depends(get_current_user_optional),
 ):
     if not current_user or current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Admin privileges required")
+        raise AppError(403, ErrorCode.ADMIN_REQUIRED, "Admin privileges required")
     return current_user
 
 
@@ -70,9 +72,14 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     created_at: datetime
+    language: Language
 
     class Config:
         from_attributes = True
+
+
+class UserUpdate(BaseModel):
+    language: Language
 
 
 class APIKeyCreate(BaseModel):
@@ -100,16 +107,35 @@ class APIKeyResponse(BaseModel):
         from_attributes = True
 
 
+def _profile(user: User) -> UserResponse:
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        username=user.username,
+        role=user.role.value if isinstance(user.role, UserRole) else user.role,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        language=user.language,
+    )
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
-    return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        username=current_user.username,
-        role=current_user.role.value,
-        is_active=current_user.is_active,
-        created_at=current_user.created_at,
+    return _profile(current_user)
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_current_user_profile(
+    update: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Change the caller's own settings; there is no way to change another user."""
+    db.query(User).filter(User.id == current_user.id).update(
+        {User.language: update.language.value}
     )
+    db.commit()
+    return _profile(db.get(User, current_user.id))
 
 
 @router.get("/me/api-keys", response_model=list[APIKeyResponse])
@@ -174,8 +200,10 @@ async def get_api_key_by_service(
     )
 
     if not api_key:
-        raise HTTPException(
-            status_code=404, detail=f"No active API key found for {service_name}"
+        raise AppError(
+            404,
+            ErrorCode.API_KEY_NOT_FOUND,
+            f"No active API key found for {service_name}",
         )
 
     return api_key
@@ -194,8 +222,8 @@ async def delete_api_key(
     )
 
     if not api_key:
-        raise HTTPException(
-            status_code=404, detail=f"API key for {service_name} not found"
+        raise AppError(
+            404, ErrorCode.API_KEY_NOT_FOUND, f"API key for {service_name} not found"
         )
 
     db.delete(api_key)
@@ -207,17 +235,7 @@ async def list_all_users(
     admin_user: User = Depends(admin_user_required), db: Session = Depends(get_db)
 ):
     users = db.query(User).all()
-    return [
-        UserResponse(
-            id=user.id,
-            email=user.email,
-            username=user.username,
-            role=user.role.value if isinstance(user.role, UserRole) else user.role,
-            is_active=user.is_active,
-            created_at=user.created_at,
-        )
-        for user in users
-    ]
+    return [_profile(user) for user in users]
 
 
 @admin_router.post(
@@ -229,16 +247,7 @@ async def create_new_user(
     db: Session = Depends(get_db),
 ):
     new_user = create_user(db, user_data, current_user=admin_user)
-    return UserResponse(
-        id=new_user.id,
-        email=new_user.email,
-        username=new_user.username,
-        role=new_user.role.value
-        if isinstance(new_user.role, UserRole)
-        else new_user.role,
-        is_active=new_user.is_active,
-        created_at=new_user.created_at,
-    )
+    return _profile(new_user)
 
 
 @admin_router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -250,10 +259,12 @@ async def delete_user(
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise AppError(404, ErrorCode.USER_NOT_FOUND, "User not found")
 
     if user.id == admin_user.id:
-        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+        raise AppError(
+            400, ErrorCode.CANNOT_DELETE_SELF, "Cannot delete your own account"
+        )
 
     db.delete(user)
     db.commit()

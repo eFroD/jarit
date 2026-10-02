@@ -18,7 +18,7 @@ JarIt is an intelligent application that automatically extracts structured recip
   - Ollama (local models)
 - **Audio Transcription** - Automatic video transcription using OpenAI Whisper
 - **Smart Recipe Parsing** - Extracts ingredients, instructions, timing, and metadata
-- **Multi-Language** - Translate recipes to your preferred language during extraction
+- **Multi-Language** - The app speaks English, German, Spanish, French and Italian; recipes are written in your language by default and can be translated into any of them during extraction
 - **Background Extraction** - Extraction runs in the background with live progress; leave the page and come back any time
 - **Extraction History** - Every extraction is kept: reopen, edit and upload recipes later, see which ones are already in Mealie
 - **Recipe Editor** - Review and edit extracted recipes before uploading; edits are saved
@@ -40,6 +40,7 @@ JarIt is an intelligent application that automatically extracts structured recip
   - [Background Extraction and Database Migrations](#background-extraction-and-database-migrations)
   - [Obtaining Mealie API Key](#obtaining-mealie-api-key)
 - [Usage](#usage)
+  - [Language](#language)
 - [Contributing](#contributing)
 
 ## Prerequisites
@@ -414,7 +415,7 @@ Log in with your Mealie credentials
 
 1. **Navigate to Dashboard**
 2. **Paste a video URL** (YouTube, TikTok, Instagram, etc.)
-3. **Select target language** (optional - defaults to English)
+3. **Select the recipe language** (optional - your own language is preselected; the recipe is translated if the video is in another language)
 4. **Click "Extract Recipe"** – you are taken to a progress page right away
 5. Follow the steps (fetching the description, transcribing audio if needed, extracting the recipe). This usually takes 10-60 seconds; you can leave the page and come back via the dashboard or **History**
 6. **Review and edit** the extracted recipe – use **Save changes** to keep your edits
@@ -425,6 +426,21 @@ If an extraction fails, the progress page and the history show the reason (e.g. 
 ### History
 
 **History** in the navigation lists all your extractions, newest first, with their status and whether the recipe is already in Mealie. From there you can reopen and edit a recipe, upload it (again), retry failed extractions, or delete entries. Each user only ever sees their own extractions, admins included. Deleting an entry does not remove the recipe from Mealie.
+
+### Language
+
+Every user has a language: **English, Deutsch, Español, Français or Italiano**. It is used for
+
+- the whole app (texts, error messages, dates), and
+- the preselected recipe language when you extract a recipe.
+
+Change it any time under **Dashboard → Language**; the app switches immediately. New accounts start with the language chosen at registration (preselected from the browser), existing accounts with English. Before signing in, the app follows the browser language.
+
+Changing your language never changes recipes you already extracted.
+
+**Adding or changing a UI text** (developers): all texts live in `frontend/src/lib/i18n/messages/`. Add the key to `en.ts` first, then to `de.ts`, `es.ts`, `fr.ts` and `it.ts`; `npm run check` fails as long as any language is missing a key.
+
+**API clients**: `PATCH /api/v1/users/me` with `{"language": "de"}` changes the language; `POST /api/v1/extraction-jobs` without `target_language` uses it. Error responses contain a stable `code` next to the English `detail`, e.g. `{"detail": "Only failed extractions can be retried", "code": "JOB_NOT_RETRYABLE"}`.
 
 ### Admin Panel
 
