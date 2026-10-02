@@ -9,6 +9,7 @@ from jarit.integrations.mealie_integration import (
 )
 from jarit.api.v1.endpoints.users import get_current_user
 from jarit.db.models.api_keys import APIKey
+from jarit.integrations.credentials import SecretUnreadableError, reveal_secret
 from jarit.db.models.users import User
 from jarit.db.database import get_db
 
@@ -42,7 +43,19 @@ async def get_mealie_credentials(
             detail="Mealie base URL not configured. Please update your Mealie credentials.",
         )
 
-    return {"endpoint": api_key_entry.base_url, "api_key": api_key_entry.api_key}
+    try:
+        api_key = reveal_secret(db, api_key_entry)
+    except SecretUnreadableError:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Your stored Mealie credentials can no longer be read (the server's "
+                "encryption key has changed). Please enter your Mealie API key again "
+                "in the settings."
+            ),
+        ) from None
+
+    return {"endpoint": api_key_entry.base_url, "api_key": api_key}
 
 
 @router.post("/upload-mealie")

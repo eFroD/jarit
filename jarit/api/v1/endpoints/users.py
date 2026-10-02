@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 from jarit.db.database import get_db
 from jarit.db.models.users import User, UserRole
@@ -12,6 +12,7 @@ from jarit.core.security import (
 )
 from jarit.auth.service import get_user_by_username, create_user
 from jarit.auth.schemas import UserCreate
+from jarit.integrations.credentials import set_secret
 
 
 async def get_current_user(
@@ -79,6 +80,14 @@ class APIKeyCreate(BaseModel):
     api_key: str
     base_url: str | None = None
 
+    @field_validator("api_key")
+    @classmethod
+    def api_key_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("API key must not be empty")
+        return value
+
 
 class APIKeyResponse(BaseModel):
     id: int
@@ -131,7 +140,7 @@ async def create_or_update_api_key(
     )
 
     if existing_key:
-        existing_key.api_key = api_key_data.api_key
+        set_secret(existing_key, api_key_data.api_key)
         existing_key.base_url = api_key_data.base_url
         existing_key.is_active = True
         db.commit()
@@ -140,9 +149,9 @@ async def create_or_update_api_key(
     new_key = APIKey(
         user_id=current_user.id,
         service_name=api_key_data.service_name,
-        api_key=api_key_data.api_key,
         base_url=api_key_data.base_url,
     )
+    set_secret(new_key, api_key_data.api_key)
     db.add(new_key)
     db.commit()
     return {"message": f"{api_key_data.service_name} API key created successfully"}

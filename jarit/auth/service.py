@@ -19,7 +19,6 @@ def get_user_by_username(db: Session, username: str):
 
 def create_user(db: Session, user: UserCreate, current_user: User | None = None):
     count = user_count(db)
-    print(f"User count: {count}")
     if count == 0:
         db_role = UserRole.ADMIN
 
