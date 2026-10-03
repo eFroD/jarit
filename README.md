@@ -39,6 +39,7 @@ JarIt is an intelligent application that automatically extracts structured recip
   - [Encryption Key for Integration Credentials](#encryption-key-for-integration-credentials)
   - [Background Extraction and Database Migrations](#background-extraction-and-database-migrations)
   - [Updates and yt-dlp](#updates-and-yt-dlp)
+  - [Testing the Development Version (dev)](#testing-the-development-version-dev)
   - [Obtaining Mealie API Key](#obtaining-mealie-api-key)
 - [Usage](#usage)
   - [Language](#language)
@@ -103,7 +104,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ghcr.io/efrod/jarit/backend:latest
+    image: ghcr.io/efrod/jarit/backend:${JARIT_IMAGE_TAG:-latest}
     expose:
       - "8000"
     environment:
@@ -130,7 +131,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/efrod/jarit/frontend:latest
+    image: ghcr.io/efrod/jarit/frontend:${JARIT_IMAGE_TAG:-latest}
     ports:
       - "80:80"
     depends_on:
@@ -275,6 +276,9 @@ JARIT_ENCRYPTION_KEY=your_generated_key
 # Recipe extraction
 JARIT_MAX_CONCURRENT_EXTRACTIONS=2   # Extractions running at the same time; more wait their turn
 
+# Image tag used by docker-compose.yml (default: latest)
+# JARIT_IMAGE_TAG=dev                # See "Testing the Development Version (dev)"
+
 
 POSTGRES_DB=devdb
 POSTGRES_USER=devuser
@@ -332,7 +336,7 @@ uv run alembic revision --autogenerate -m "describe it"  # create a new migratio
 
 ### Updates and yt-dlp
 
-Video platforms change often, and yt-dlp follows within days. The backend image therefore always contains the newest yt-dlp at build time, and a scheduled workflow rebuilds the image of the latest release **every Monday** with the newest yt-dlp. It updates the `latest` and minor tags (e.g. `1.2`); exact version tags (e.g. `1.2.0`) stay as released.
+Video platforms change often, and yt-dlp follows within days. The backend image therefore always contains the newest yt-dlp at build time, and a scheduled workflow rebuilds the image of the latest release **every Monday** with the newest yt-dlp. It updates the `latest` and minor tags (e.g. `1.2`); exact version tags (e.g. `1.2.0`) stay as released. The `dev` images are not affected; they get the newest yt-dlp with every change on `dev`.
 
 To pick these updates up, pull regularly, for example:
 
@@ -343,6 +347,49 @@ docker compose pull && docker compose up -d
 or let a tool such as [Watchtower](https://containrrr.dev/watchtower/) do it. The container no longer updates yt-dlp at startup, so it starts without network access to PyPI.
 
 All other dependencies (Python, npm, Docker base images, GitHub Actions) are kept current by Dependabot pull requests against `dev`.
+
+### Testing the Development Version (dev)
+
+Besides the releases, every change on the `dev` branch is published as images for amd64 and arm64:
+
+- `dev` always points to the newest `dev` build.
+- `dev-<commit>` (e.g. `dev-4ea078e`) stays on exactly that commit.
+
+**`dev` is not stable and not meant for production.** Use it to try upcoming changes on a real machine.
+
+To switch an installation, set the image tag in your `.env` and pull:
+
+```bash
+JARIT_IMAGE_TAG=dev              # or dev-<commit> to stay on one build
+```
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+To see which commit is running:
+
+```bash
+docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' $(docker compose ps -q backend)
+```
+
+**Mind the database.** [Migrations run automatically](#background-extraction-and-database-migrations) when the backend starts, and they are not undone when you switch back. An older release may not start on a schema that `dev` has already changed. Use one of these:
+
+1. **A separate test instance** (recommended): a copy of the compose setup in its own directory with its own `.env`. Compose names the project after the directory, so the test instance gets its own `postgres_data` volume. Change the frontend port if both run on the same host.
+2. **A backup before switching:**
+   ```bash
+   docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup.sql
+   ```
+
+To switch back, remove `JARIT_IMAGE_TAG` from `.env` (or set it to `latest`). If `dev` changed the database, restore the backup into an empty database before starting the release:
+
+```bash
+docker compose down
+docker volume rm <project>_postgres_data     # see `docker volume ls`
+docker compose up -d --wait postgres
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"' < backup.sql
+docker compose pull && docker compose up -d
+```
 
 ### Obtaining API Keys
 

@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ghcr.io/efrod/jarit/backend:latest
+    image: ghcr.io/efrod/jarit/backend:${JARIT_IMAGE_TAG:-latest}
     expose:
       - "8000"
     environment:
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/efrod/jarit/frontend:latest
+    image: ghcr.io/efrod/jarit/frontend:${JARIT_IMAGE_TAG:-latest}
     ports:
       - "80:80"
     depends_on:
