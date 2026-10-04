@@ -343,3 +343,41 @@ async def test_jobs_start_in_submission_order_including_retries():
     await runner.stop()
 
     assert store.started == [flaky, a, b, flaky]
+
+
+@pytest.mark.parametrize("status, logged", [(400, True), (429, False)])
+async def test_rejected_configuration_gets_one_clear_log_line(
+    status, logged, caplog, monkeypatch
+):
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    store = FakeStore()
+
+    async def extract(url, language, report):
+        raise ModelHTTPError(
+            status, "gpt-6-luna", {"message": "reasoning_effort not supported"}
+        )
+
+    caplog.set_level(logging.ERROR)
+    runner = await running(store, extract)
+    job_id = store.add()
+    runner.submit(job_id)
+    await wait_until(finished(store, job_id))
+    await runner.stop()
+
+    assert store.jobs[job_id]["reason"] == FailureReason.LLM_ERROR
+    rejected = [
+        r
+        for r in caplog.records
+        if r.name == "jarit.jobs.runner"
+        and r.getMessage().startswith("LLM provider rejected the request")
+    ]
+    if not logged:
+        assert rejected == []
+        return
+    assert len(rejected) == 1
+    message = rejected[0].getMessage()
+    assert "provider=openai" in message
+    assert "model=gpt-6-luna" in message
+    assert "reasoning_effort not supported" in message
+    assert rejected[0].job_id == str(job_id)
+    assert rejected[0].status == 400

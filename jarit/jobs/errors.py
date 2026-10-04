@@ -1,14 +1,15 @@
 """Failure types of an extraction and their user-facing reasons.
 
 The tools raise the typed errors where the cause is unambiguous; everything else
-is classified by exception type. Exception messages never leave the log.
+is classified by exception type. Exception messages never leave the log; that
+includes the text of describe_rejected_request, which is only for operators.
 """
 
 import httpx
 import httpx2
 import openai
 from google.genai import errors as google_errors
-from pydantic_ai.exceptions import AgentRunError
+from pydantic_ai.exceptions import AgentRunError, ModelHTTPError
 
 from jarit.jobs.models import FailureReason
 
@@ -45,3 +46,23 @@ def classify(exc: BaseException) -> FailureReason:
     if isinstance(exc, _LLM_ERRORS):
         return FailureReason.LLM_ERROR
     return FailureReason.UNKNOWN
+
+
+# Statuses where retrying won't help: the provider refused the request as configured.
+REJECTED_STATUS_CODES = frozenset({400, 401, 403, 404, 422})
+_MAX_PROVIDER_MESSAGE = 500
+
+
+def describe_rejected_request(exc: BaseException) -> str | None:
+    """One line for the log if the provider rejected the model configuration."""
+    if (
+        not isinstance(exc, ModelHTTPError)
+        or exc.status_code not in REJECTED_STATUS_CODES
+    ):
+        return None
+    body = exc.body
+    if isinstance(body, dict) and isinstance(body.get("message"), str):
+        message = body["message"]
+    else:
+        message = str(body)
+    return f"model={exc.model_name} status={exc.status_code}: {message[:_MAX_PROVIDER_MESSAGE]}"
