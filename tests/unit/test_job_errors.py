@@ -1,4 +1,5 @@
 import httpx
+import httpx2
 import openai
 import pytest
 from google.genai import errors as google_errors
@@ -17,11 +18,12 @@ from jarit.jobs.models import FailureReason
         (ModelHTTPError(503, "model"), FailureReason.LLM_ERROR),
         (UnexpectedModelBehavior("bad output"), FailureReason.LLM_ERROR),
         (
-            openai.APIConnectionError(request=httpx.Request("POST", "https://x")),
+            openai.APIConnectionError(request=httpx2.Request("POST", "https://x")),
             FailureReason.LLM_ERROR,
         ),
         (google_errors.APIError(500, {}), FailureReason.LLM_ERROR),
         (httpx.ConnectError("refused"), FailureReason.LLM_ERROR),
+        (httpx2.ConnectError("refused"), FailureReason.LLM_ERROR),
         (ValueError("bug"), FailureReason.UNKNOWN),
     ],
 )
