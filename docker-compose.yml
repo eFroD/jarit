@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ghcr.io/efrod/jarit/backend:latest
+    image: ghcr.io/efrod/jarit/backend:${JARIT_IMAGE_TAG:-latest}
     expose:
       - "8000"
     environment:
@@ -28,12 +28,15 @@ services:
       - LOGFIRE_WRITE_TOKEN=${LOGFIRE_WRITE_TOKEN:-}
       - LLM_PROVIDER=${LLM_PROVIDER}
       - MODEL_NAME=${MODEL_NAME}
+      - LLM_REASONING_EFFORT=${LLM_REASONING_EFFORT:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OLLAMA_URL=${OLLAMA_URL:-}
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       - SECRET_KEY=${SECRET_KEY}
+      - JARIT_ENCRYPTION_KEY=${JARIT_ENCRYPTION_KEY}
+      - JARIT_MAX_CONCURRENT_EXTRACTIONS=${JARIT_MAX_CONCURRENT_EXTRACTIONS:-2}
       - ALGORITHM=${ALGORITHM:-HS256}
     command: uv run uvicorn main:app --host 0.0.0.0 --port 8000
     depends_on:
@@ -44,7 +47,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/efrod/jarit/frontend:latest
+    image: ghcr.io/efrod/jarit/frontend:${JARIT_IMAGE_TAG:-latest}
     ports:
       - "80:80"
     depends_on:

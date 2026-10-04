@@ -1,78 +1,121 @@
 // src/lib/types.ts
 
+import type { Locale } from './i18n/languages';
+
 export interface User {
-  id: number;
-  email: string;
-  username: string;
-  role: 'ADMIN' | 'USER';
-  is_active: boolean;
-  created_at: string;
+	id: number;
+	email: string;
+	username: string;
+	role: 'ADMIN' | 'USER';
+	is_active: boolean;
+	created_at: string;
+	language: Locale;
 }
 
 export interface APIKey {
-  id: number;
-  service_name: string;
-  base_url: string | null;
-  is_active: boolean;
-  created_at: string;
+	id: number;
+	service_name: string;
+	base_url: string | null;
+	is_active: boolean;
+	created_at: string;
 }
 
 export interface Author {
-  '@type'?: string;
-  name: string;
+	'@type'?: string;
+	name: string;
 }
 
 export interface HowToStep {
-  '@type'?: string;
-  text: string;
+	'@type'?: string;
+	text: string;
 }
 
 export interface HowToSection {
-  name: string | null;
-  itemListElement: HowToStep[];
+	name: string | null;
+	itemListElement: HowToStep[];
 }
 
 export interface Recipe {
-  '@context': string;
-  '@type': string;
-  name: string;
-  description: string | null;
-  image: string | string[] | null;
-  recipeYield: string;
-  recipeIngredient: string[];
-  recipeInstructions: (HowToStep | HowToSection)[] | null;
-  prepTime: string;
-  cookTime: string;
-  totalTime: string;
-  recipeCategory: string;
-  recipeCuisine: string;
-  keywords: string[] | null;
-  suitableForDiet: string;
-  author: Author | null;
-  video: string | null;
-  url: string | null;
+	'@context': string;
+	'@type': string;
+	name: string;
+	description: string | null;
+	image: string | string[] | null;
+	recipeYield: string;
+	recipeIngredient: string[];
+	recipeInstructions: (HowToStep | HowToSection)[] | null;
+	prepTime: string;
+	cookTime: string;
+	totalTime: string;
+	recipeCategory: string;
+	recipeCuisine: string;
+	keywords: string[] | null;
+	suitableForDiet: string;
+	author: Author | null;
+	video: string | null;
+	url: string | null;
 }
 
 export interface RecipeError {
-  error: string;
-  missing_fields: string[];
+	error: string;
+	missing_fields: string[];
 }
 
 export interface ExtractRecipeResponse {
-  recipe: Recipe | null;
-  suggested_version: Recipe | null;
-  error_info: RecipeError;
+	recipe: Recipe | null;
+	suggested_version: Recipe | null;
+	error_info: RecipeError;
+}
+
+export type JobStatus =
+	| 'QUEUED'
+	| 'FETCHING_DESCRIPTION'
+	| 'TRANSCRIBING'
+	| 'EXTRACTING'
+	| 'COMPLETED'
+	| 'FAILED';
+
+export type FailureReason =
+	| 'VIDEO_UNREACHABLE'
+	| 'NO_RECIPE_FOUND'
+	| 'TRANSCRIPTION_FAILED'
+	| 'LLM_ERROR'
+	| 'TIMEOUT'
+	| 'RESTARTED'
+	| 'UNKNOWN';
+
+export interface ExtractionJobSummary {
+	id: string;
+	video_url: string;
+	target_language: string;
+	title: string | null;
+	status: JobStatus;
+	failure_reason: FailureReason | null;
+	created_at: string;
+	/** Start of the current attempt; reset by a retry, unlike created_at. */
+	started_at: string;
+	updated_at: string;
+	uploaded_to_mealie_at: string | null;
+}
+
+export interface ExtractionJob extends ExtractionJobSummary {
+	result: ExtractRecipeResponse | null;
+}
+
+export interface UploadResponse {
+	message: string;
+	uploaded_to_mealie_at: string;
 }
 
 export interface LoginResponse {
-  access_token: string;
-  token_type: string;
+	access_token: string;
+	token_type: string;
 }
 
 export interface RegisterResponse {
-  email: string;
-  username: string;
-  id: number;
-  is_active: boolean;
-  created_at: string;
+	email: string;
+	username: string;
+	id: number;
+	is_active: boolean;
+	created_at: string;
 }

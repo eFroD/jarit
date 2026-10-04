@@ -1,0 +1,65 @@
+name: Refresh yt-dlp in the backend image
+
+# Video platforms change often and yt-dlp follows quickly. This rebuilds the
+# backend image of the latest release with the newest yt-dlp, so `latest`
+# keeps working between releases. Exact version tags (e.g. 1.2.0) stay as
+# released; only `latest` and the minor tag (e.g. 1.2) move.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1" # Mondays, 04:17 UTC
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  rebuild-backend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Find the latest release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "minor=$(echo "${tag#v}" | cut -d. -f1,2)" >> "$GITHUB_OUTPUT"
+          echo "repository=${GITHUB_REPOSITORY@L}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.backend
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            YTDLP_REFRESH=${{ github.run_id }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.release.outputs.repository }}/backend:latest
+            ${{ env.REGISTRY }}/${{ steps.release.outputs.repository }}/backend:${{ steps.release.outputs.minor }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.release.outputs.repository }}/backend:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.release.outputs.repository }}/backend:buildcache,mode=max

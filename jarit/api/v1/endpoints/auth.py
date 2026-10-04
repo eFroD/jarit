@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
+from jarit.api.errors import AppError, ErrorCode
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -34,9 +35,10 @@ def login(
     """Login and get access token"""
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+        raise AppError(
+            status.HTTP_401_UNAUTHORIZED,
+            ErrorCode.INVALID_CREDENTIALS,
+            "Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

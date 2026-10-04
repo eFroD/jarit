@@ -1,15 +1,18 @@
 """Unit tests for async Mealie integration module."""
 
+import json
+
 import pytest
-from unittest.mock import patch, Mock, AsyncMock, MagicMock
+from unittest.mock import patch, Mock, AsyncMock
 from pydantic import HttpUrl, BaseModel
 import httpx
 from jarit.integrations.mealie_integration import (
     push_recipe_to_mealie,
     push_image_to_mealie,
-    MEALIE_ENDPOINT,
-    MEALIE_API_KEY,
 )
+
+MEALIE_ENDPOINT = "https://mealie.test"
+MEALIE_API_KEY = "test-key"
 
 
 class RecipeIngredient(BaseModel):
@@ -105,7 +108,9 @@ class TestPushRecipeToMealie:
             mock_client.put = AsyncMock(return_value=mock_put_response)
 
             # Call function
-            result = await push_recipe_to_mealie(sample_recipe_dict)
+            result = await push_recipe_to_mealie(
+                sample_recipe_dict, MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             # Assertions
             assert result == "Recipe pushed to Mealie successfully."
@@ -113,12 +118,15 @@ class TestPushRecipeToMealie:
             # Verify recipe POST was called correctly
             mock_client.post.assert_called_once()
             post_call_args = mock_client.post.call_args
-            assert post_call_args[0][0] == f"{MEALIE_ENDPOINT}/api/recipes"
+            assert (
+                post_call_args[0][0]
+                == f"{MEALIE_ENDPOINT}/api/recipes/create/html-or-json"
+            )
             assert (
                 post_call_args[1]["headers"]["Authorization"]
                 == f"Bearer {MEALIE_API_KEY}"
             )
-            assert post_call_args[1]["json"] == sample_recipe_dict
+            assert json.loads(post_call_args[1]["json"]["data"]) == sample_recipe_dict
 
             # Verify image was downloaded
             mock_client.get.assert_called_once_with("https://example.com/image.jpg")
@@ -145,7 +153,9 @@ class TestPushRecipeToMealie:
             mock_client.post = AsyncMock(return_value=mock_post_response)
 
             # Call function
-            result = await push_recipe_to_mealie(sample_recipe_without_image)
+            result = await push_recipe_to_mealie(
+                sample_recipe_without_image, MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             # Assertions
             assert result == "Recipe pushed to Mealie successfully."
@@ -171,7 +181,9 @@ class TestPushRecipeToMealie:
             mock_post_response.raise_for_status = Mock()
             mock_client.post = AsyncMock(return_value=mock_post_response)
 
-            result = await push_recipe_to_mealie(sample_recipe_dict)
+            result = await push_recipe_to_mealie(
+                sample_recipe_dict, MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             assert result == "Recipe pushed to Mealie successfully."
             # Empty string should not trigger image upload
@@ -205,14 +217,16 @@ class TestPushRecipeToMealie:
             mock_put_response.raise_for_status = Mock()
             mock_client.put = AsyncMock(return_value=mock_put_response)
 
-            result = await push_recipe_to_mealie(recipe_dict)
+            result = await push_recipe_to_mealie(
+                recipe_dict, MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             assert result == "Recipe pushed to Mealie successfully."
             mock_client.post.assert_called_once()
 
             # Verify the dict was passed correctly (HttpUrl converted to string)
             post_call_args = mock_client.post.call_args
-            posted_data = post_call_args[1]["json"]
+            posted_data = json.loads(post_call_args[1]["json"]["data"])
             assert isinstance(posted_data["image"], str)
             assert posted_data["image"] == "https://example.com/image.jpg"
 
@@ -233,7 +247,9 @@ class TestPushRecipeToMealie:
             )
 
             with pytest.raises(httpx.HTTPStatusError):
-                await push_recipe_to_mealie(sample_recipe_dict)
+                await push_recipe_to_mealie(
+                    sample_recipe_dict, MEALIE_ENDPOINT, MEALIE_API_KEY
+                )
 
     @pytest.mark.asyncio
     async def test_push_recipe_422_unprocessable_entity(self, sample_recipe_dict):
@@ -256,7 +272,9 @@ class TestPushRecipeToMealie:
             )
 
             with pytest.raises(httpx.HTTPStatusError) as exc_info:
-                await push_recipe_to_mealie(sample_recipe_dict)
+                await push_recipe_to_mealie(
+                    sample_recipe_dict, MEALIE_ENDPOINT, MEALIE_API_KEY
+                )
 
             assert exc_info.value.response.status_code == 422
 
@@ -287,7 +305,9 @@ class TestPushRecipeToMealie:
             mock_put_response.raise_for_status = Mock()
             mock_client.put = AsyncMock(return_value=mock_put_response)
 
-            await push_recipe_to_mealie(sample_recipe_dict)
+            await push_recipe_to_mealie(
+                sample_recipe_dict, MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             # Verify slug in PUT URL has no quotes or encoding
             put_call_url = mock_client.put.call_args[0][0]
@@ -323,7 +343,9 @@ class TestPushImageToMealie:
             # Call function
             image_url = HttpUrl("https://example.com/test.png")
             slug = "test-recipe-slug"
-            result = await push_image_to_mealie(image_url, slug)
+            result = await push_image_to_mealie(
+                image_url, slug, MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             # Assertions
             assert result is True
@@ -366,7 +388,9 @@ class TestPushImageToMealie:
             mock_client.put = AsyncMock(return_value=mock_put_response)
 
             image_url = HttpUrl("https://example.com/photo")
-            result = await push_image_to_mealie(image_url, "test-slug")
+            result = await push_image_to_mealie(
+                image_url, "test-slug", MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             assert result is True
             files = mock_client.put.call_args[1]["files"]
@@ -393,7 +417,9 @@ class TestPushImageToMealie:
             mock_client.put = AsyncMock(return_value=mock_put_response)
 
             image_url = HttpUrl("https://cdn.example.com/image.webp")
-            result = await push_image_to_mealie(image_url, "webp-recipe")
+            result = await push_image_to_mealie(
+                image_url, "webp-recipe", MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             assert result is True
             files = mock_client.put.call_args[1]["files"]
@@ -420,7 +446,9 @@ class TestPushImageToMealie:
 
             # URL with query parameters
             image_url = HttpUrl("https://example.com/photo.png?size=large&format=web")
-            result = await push_image_to_mealie(image_url, "fallback-test")
+            result = await push_image_to_mealie(
+                image_url, "fallback-test", MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             assert result is True
             files = mock_client.put.call_args[1]["files"]
@@ -447,7 +475,9 @@ class TestPushImageToMealie:
 
             # No extension in URL
             image_url = HttpUrl("https://example.com/image")
-            result = await push_image_to_mealie(image_url, "default-extension")
+            result = await push_image_to_mealie(
+                image_url, "default-extension", MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             assert result is True
             files = mock_client.put.call_args[1]["files"]
@@ -471,7 +501,9 @@ class TestPushImageToMealie:
             image_url = HttpUrl("https://example.com/missing.jpg")
 
             with pytest.raises(httpx.HTTPStatusError):
-                await push_image_to_mealie(image_url, "test-slug")
+                await push_image_to_mealie(
+                    image_url, "test-slug", MEALIE_ENDPOINT, MEALIE_API_KEY
+                )
 
     @pytest.mark.asyncio
     async def test_image_upload_500_error(self):
@@ -499,7 +531,9 @@ class TestPushImageToMealie:
             image_url = HttpUrl("https://example.com/test.png")
 
             with pytest.raises(httpx.HTTPStatusError):
-                await push_image_to_mealie(image_url, "test-slug")
+                await push_image_to_mealie(
+                    image_url, "test-slug", MEALIE_ENDPOINT, MEALIE_API_KEY
+                )
 
     @pytest.mark.asyncio
     async def test_instagram_cdn_url_handling(self):
@@ -526,7 +560,9 @@ class TestPushImageToMealie:
                 "522819255_18519012295046223_5891187172040965353_n.jpg"
                 "?stp=dst-jpg_e15_fr_p1080x1080_tt6"
             )
-            result = await push_image_to_mealie(image_url, "instagram-recipe")
+            result = await push_image_to_mealie(
+                image_url, "instagram-recipe", MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             assert result is True
             files = mock_client.put.call_args[1]["files"]
@@ -552,7 +588,9 @@ class TestPushImageToMealie:
             mock_client.put = AsyncMock(return_value=mock_put_response)
 
             image_url = HttpUrl("https://example.com/test.png")
-            await push_image_to_mealie(image_url, "test")
+            await push_image_to_mealie(
+                image_url, "test", MEALIE_ENDPOINT, MEALIE_API_KEY
+            )
 
             # Verify AsyncClient was called with timeout
             mock_client_class.assert_called_with(timeout=30.0)

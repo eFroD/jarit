@@ -18,11 +18,13 @@ JarIt is an intelligent application that automatically extracts structured recip
   - Ollama (local models)
 - **Audio Transcription** - Automatic video transcription using OpenAI Whisper
 - **Smart Recipe Parsing** - Extracts ingredients, instructions, timing, and metadata
-- **Multi-Language** - Translate recipes to your preferred language during extraction
-- **Recipe Editor** - Review and edit extracted recipes before uploading
+- **Multi-Language** - The app speaks English, German, Spanish, French and Italian; recipes are written in your language by default and can be translated into any of them during extraction
+- **Background Extraction** - Extraction runs in the background with live progress; leave the page and come back any time
+- **Extraction History** - Every extraction is kept: reopen, edit and upload recipes later, see which ones are already in Mealie
+- **Recipe Editor** - Review and edit extracted recipes before uploading; edits are saved
 - **Mealie Integration** - One-click upload to your Mealie instance
 - **Multi-User Support** - User authentication with admin panel
-- **Secure** - JWT authentication, encrypted API keys, role-based access
+- **Secure** - JWT authentication, role-based access, and users' integration credentials (e.g. Mealie API keys) encrypted at rest
 - **Docker Ready** - Complete Docker setup for easy deployment
 
 ## Table of Contents
@@ -34,8 +36,13 @@ JarIt is an intelligent application that automatically extracts structured recip
   - [Build Docker Images Locally](#build-docker-images-locally)
   - [Development Setup](#development-setup)
 - [Configuration](#configuration)
+  - [Encryption Key for Integration Credentials](#encryption-key-for-integration-credentials)
+  - [Background Extraction and Database Migrations](#background-extraction-and-database-migrations)
+  - [Updates and yt-dlp](#updates-and-yt-dlp)
+  - [Testing the Development Version (dev)](#testing-the-development-version-dev)
   - [Obtaining Mealie API Key](#obtaining-mealie-api-key)
 - [Usage](#usage)
+  - [Language](#language)
 - [Contributing](#contributing)
 
 ## Prerequisites
@@ -97,7 +104,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ghcr.io/efrod/jarit/backend:latest
+    image: ghcr.io/efrod/jarit/backend:${JARIT_IMAGE_TAG:-latest}
     expose:
       - "8000"
     environment:
@@ -106,12 +113,15 @@ services:
       - LOGFIRE_WRITE_TOKEN=${LOGFIRE_WRITE_TOKEN:-}
       - LLM_PROVIDER=${LLM_PROVIDER}
       - MODEL_NAME=${MODEL_NAME}
+      - LLM_REASONING_EFFORT=${LLM_REASONING_EFFORT:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OLLAMA_URL=${OLLAMA_URL:-}
       - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-false}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       - SECRET_KEY=${SECRET_KEY}
+      - JARIT_ENCRYPTION_KEY=${JARIT_ENCRYPTION_KEY}
+      - JARIT_MAX_CONCURRENT_EXTRACTIONS=${JARIT_MAX_CONCURRENT_EXTRACTIONS:-2}
       - ALGORITHM=${ALGORITHM:-HS256}
     command: uv run uvicorn main:app --host 0.0.0.0 --port 8000
     depends_on:
@@ -122,7 +132,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/efrod/jarit/frontend:latest
+    image: ghcr.io/efrod/jarit/frontend:${JARIT_IMAGE_TAG:-latest}
     ports:
       - "80:80"
     depends_on:
@@ -148,6 +158,9 @@ But then you will also have to add the .env file:
 # Get the model names and provider names from the pydantic AI documentation.
 LLM_PROVIDER=google
 MODEL_NAME=gemini-2.5-flash
+# Optional: how much the model may reason before answering (off, minimal, low, medium, high, xhigh).
+# Unset = the model's default. Higher = slower and more expensive.
+# LLM_REASONING_EFFORT=
 GOOGLE_API_KEY=YOUR-KEY-HERE
 OPENAI_API_KEY=YOUR-KEY-HERE
 
@@ -158,6 +171,12 @@ ALLOW_REGISTRATION=false
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 SECRET_KEY=CHANGEME
 ALGORITHM=HS256
+
+# Encryption of user integration credentials - required, see below
+JARIT_ENCRYPTION_KEY=CHANGEME
+
+# Maximum number of extractions running at the same time (default 2)
+JARIT_MAX_CONCURRENT_EXTRACTIONS=2
 
 # PostgreSQL settings - Change credentials
 POSTGRES_DB=devdb
@@ -248,12 +267,22 @@ LLM_PROVIDER=google              # Options: google, openai, ollama
 MODEL_NAME=gemini-2.5-flash      # Model to use for extraction
 GOOGLE_API_KEY=your_key_here     # Required if using Google
 OPENAI_API_KEY=your_key_here     # Required for Whisper (always) and GPT models
+LLM_REASONING_EFFORT=            # Optional: off, minimal, low, medium, high, xhigh (unset = model default)
 
 # Authentication Settings
 ALLOW_REGISTRATION=true          # Enable/disable public registration
 ACCESS_TOKEN_EXPIRE_MINUTES=30   # JWT token expiration
 SECRET_KEY=your_secret_key       
 ALGORITHM=HS256
+
+# Encryption of users' integration credentials (required)
+JARIT_ENCRYPTION_KEY=your_generated_key
+
+# Recipe extraction
+JARIT_MAX_CONCURRENT_EXTRACTIONS=2   # Extractions running at the same time; more wait their turn
+
+# Image tag used by docker-compose.yml (default: latest)
+# JARIT_IMAGE_TAG=dev                # See "Testing the Development Version (dev)"
 
 
 POSTGRES_DB=devdb
@@ -262,6 +291,111 @@ POSTGRES_PASSWORD=devpassword
 DATABASE_URL=postgresql://devuser:devpassword@postgres:5432/devdb
 
 VITE_API_BASE=http://localhost:8000/api/v1
+```
+
+With `LLM_PROVIDER=openai`, JarIt uses OpenAI's Responses API, so reasoning models such as `gpt-6-luna` can call tools while reasoning. Gateways or proxies that only implement Chat Completions no longer work with `openai`. `LLM_REASONING_EFFORT` applies to OpenAI and Gemini models that support reasoning; other models, including most Ollama models, ignore it.
+
+### Encryption Key for Integration Credentials
+
+Users store their own integration credentials (e.g. Mealie API keys) in JarIt. These are encrypted in the database with a key that only you, the host, hold. The key is read from the `JARIT_ENCRYPTION_KEY` environment variable and is never written to the database or the logs.
+
+**Generate a key** with one of these commands:
+
+```bash
+# With uv, inside a checkout of this repository
+uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# With Docker only
+docker run --rm python:3.13-slim sh -c "pip -q install cryptography && python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+```
+
+Add the output to your `.env` file:
+
+```bash
+JARIT_ENCRYPTION_KEY=<your generated key>
+```
+
+If the key is missing or invalid, the backend does not start. Instead it prints a freshly generated key and the exact `.env` line to copy into your `.env`. That suggestion appears in the container log, so if you prefer, generate the key yourself with one of the commands above.
+
+**Back up the key** together with your database backups. Without it, the stored integration credentials cannot be read.
+
+**Rotating or losing the key:** JarIt uses exactly one key and does not re-encrypt existing data. If you change or lose it, all stored integration credentials become unreadable. The app keeps working, and affected users see a message asking them to enter their Mealie API key again in the settings. There is no way to recover the old values without the old key.
+
+**Upgrading from an earlier version:** Older versions stored integration credentials in plain text. Set `JARIT_ENCRYPTION_KEY` before upgrading. On the first start, JarIt encrypts all existing credentials automatically, and users do not need to do anything.
+
+### Background Extraction and Database Migrations
+
+Extractions run as background jobs **inside the backend process** – no extra worker, queue or cache service is needed. Keep this in mind:
+
+- **Run the backend as a single process.** Do not start uvicorn with `--workers` greater than 1; the provided compose files already run one process.
+- **`JARIT_MAX_CONCURRENT_EXTRACTIONS`** (default `2`) limits how many extractions run at the same time. Further jobs wait in submission order. An invalid value falls back to `2` with a warning in the log.
+- **Restarts interrupt running jobs.** Jobs that were waiting or running when the backend stopped are marked as failed ("Interrupted by an application restart") on the next start. Users can start them again with one click.
+- An extraction that takes longer than 10 minutes is stopped and marked as timed out.
+
+**Database migrations run automatically** when the backend starts, before it accepts requests. Upgrading needs no manual steps: pull the new image and restart. Installations created by an older version (without migration history) are detected and brought under migration control without data loss. As with any upgrade, **back up your database first**.
+
+For development, the same migrations are available through Alembic (uses `DATABASE_URL`):
+
+```bash
+uv run alembic upgrade head                              # apply migrations
+uv run alembic revision --autogenerate -m "describe it"  # create a new migration after changing models
+```
+
+### Updates and yt-dlp
+
+Video platforms change often, and yt-dlp follows within days. The backend image therefore always contains the newest yt-dlp at build time, and a scheduled workflow rebuilds the image of the latest release **every Monday** with the newest yt-dlp. It updates the `latest` and minor tags (e.g. `1.2`); exact version tags (e.g. `1.2.0`) stay as released. The `dev` images are not affected; they get the newest yt-dlp with every change on `dev`.
+
+To pick these updates up, pull regularly, for example:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+or let a tool such as [Watchtower](https://containrrr.dev/watchtower/) do it. The container no longer updates yt-dlp at startup, so it starts without network access to PyPI.
+
+All other dependencies (Python, npm, Docker base images, GitHub Actions) are kept current by Dependabot pull requests against `dev`.
+
+### Testing the Development Version (dev)
+
+Besides the releases, every change on the `dev` branch is published as images for amd64 and arm64:
+
+- `dev` always points to the newest `dev` build.
+- `dev-<commit>` (e.g. `dev-4ea078e`) stays on exactly that commit.
+
+**`dev` is not stable and not meant for production.** Use it to try upcoming changes on a real machine.
+
+To switch an installation, set the image tag in your `.env` and pull:
+
+```bash
+JARIT_IMAGE_TAG=dev              # or dev-<commit> to stay on one build
+```
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+To see which commit is running:
+
+```bash
+docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' $(docker compose ps -q backend)
+```
+
+**Mind the database.** [Migrations run automatically](#background-extraction-and-database-migrations) when the backend starts, and they are not undone when you switch back. An older release may not start on a schema that `dev` has already changed. Use one of these:
+
+1. **A separate test instance** (recommended): a copy of the compose setup in its own directory with its own `.env`. Compose names the project after the directory, so the test instance gets its own `postgres_data` volume. Change the frontend port if both run on the same host.
+2. **A backup before switching:**
+   ```bash
+   docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup.sql
+   ```
+
+To switch back, remove `JARIT_IMAGE_TAG` from `.env` (or set it to `latest`). If `dev` changed the database, restore the backup into an empty database before starting the release:
+
+```bash
+docker compose down
+docker volume rm <project>_postgres_data     # see `docker volume ls`
+docker compose up -d --wait postgres
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"' < backup.sql
+docker compose pull && docker compose up -d
 ```
 
 ### Obtaining API Keys
@@ -350,11 +484,32 @@ Log in with your Mealie credentials
 
 1. **Navigate to Dashboard**
 2. **Paste a video URL** (YouTube, TikTok, Instagram, etc.)
-3. **Select target language** (optional - defaults to English)
-4. **Click "Extract Recipe"**
-5. Wait for AI to process (10-60 seconds depending on video length)
-6. **Review and edit** the extracted recipe
+3. **Select the recipe language** (optional - your own language is preselected; the recipe is translated if the video is in another language)
+4. **Click "Extract Recipe"** – you are taken to a progress page right away
+5. Follow the steps (fetching the description, transcribing audio if needed, extracting the recipe). This usually takes 10-60 seconds; you can leave the page and come back via the dashboard or **History**
+6. **Review and edit** the extracted recipe – use **Save changes** to keep your edits
 7. **Upload to Mealie** with one click!
+
+If an extraction fails, the progress page and the history show the reason (e.g. "Video unreachable") and a **Try again** button.
+
+### History
+
+**History** in the navigation lists all your extractions, newest first, with their status and whether the recipe is already in Mealie. From there you can reopen and edit a recipe, upload it (again), retry failed extractions, or delete entries. Each user only ever sees their own extractions, admins included. Deleting an entry does not remove the recipe from Mealie.
+
+### Language
+
+Every user has a language: **English, Deutsch, Español, Français or Italiano**. It is used for
+
+- the whole app (texts, error messages, dates), and
+- the preselected recipe language when you extract a recipe.
+
+Change it any time under **Dashboard → Language**; the app switches immediately. New accounts start with the language chosen at registration (preselected from the browser), existing accounts with English. Before signing in, the app follows the browser language.
+
+Changing your language never changes recipes you already extracted.
+
+**Adding or changing a UI text** (developers): all texts live in `frontend/src/lib/i18n/messages/`. Add the key to `en.ts` first, then to `de.ts`, `es.ts`, `fr.ts` and `it.ts`; `npm run check` fails as long as any language is missing a key.
+
+**API clients**: `PATCH /api/v1/users/me` with `{"language": "de"}` changes the language; `POST /api/v1/extraction-jobs` without `target_language` uses it. Error responses contain a stable `code` next to the English `detail`, e.g. `{"detail": "Only failed extractions can be retried", "code": "JOB_NOT_RETRYABLE"}`.
 
 ### Admin Panel
 
