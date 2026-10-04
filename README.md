@@ -113,6 +113,7 @@ services:
       - LOGFIRE_WRITE_TOKEN=${LOGFIRE_WRITE_TOKEN:-}
       - LLM_PROVIDER=${LLM_PROVIDER}
       - MODEL_NAME=${MODEL_NAME}
+      - LLM_REASONING_EFFORT=${LLM_REASONING_EFFORT:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OLLAMA_URL=${OLLAMA_URL:-}
@@ -157,6 +158,9 @@ But then you will also have to add the .env file:
 # Get the model names and provider names from the pydantic AI documentation.
 LLM_PROVIDER=google
 MODEL_NAME=gemini-2.5-flash
+# Optional: how much the model may reason before answering (off, minimal, low, medium, high, xhigh).
+# Unset = the model's default. Higher = slower and more expensive.
+# LLM_REASONING_EFFORT=
 GOOGLE_API_KEY=YOUR-KEY-HERE
 OPENAI_API_KEY=YOUR-KEY-HERE
 
@@ -263,6 +267,7 @@ LLM_PROVIDER=google              # Options: google, openai, ollama
 MODEL_NAME=gemini-2.5-flash      # Model to use for extraction
 GOOGLE_API_KEY=your_key_here     # Required if using Google
 OPENAI_API_KEY=your_key_here     # Required for Whisper (always) and GPT models
+LLM_REASONING_EFFORT=            # Optional: off, minimal, low, medium, high, xhigh (unset = model default)
 
 # Authentication Settings
 ALLOW_REGISTRATION=true          # Enable/disable public registration
@@ -287,6 +292,8 @@ DATABASE_URL=postgresql://devuser:devpassword@postgres:5432/devdb
 
 VITE_API_BASE=http://localhost:8000/api/v1
 ```
+
+With `LLM_PROVIDER=openai`, JarIt uses OpenAI's Responses API, so reasoning models such as `gpt-6-luna` can call tools while reasoning. Gateways or proxies that only implement Chat Completions no longer work with `openai`. `LLM_REASONING_EFFORT` applies to OpenAI and Gemini models that support reasoning; other models, including most Ollama models, ignore it.
 
 ### Encryption Key for Integration Credentials
 

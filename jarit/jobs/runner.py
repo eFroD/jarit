@@ -8,12 +8,13 @@ the queue is not: jobs left over from a previous process are failed at startup
 
 import asyncio
 import logging
+import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import UUID
 
-from jarit.jobs.errors import classify
+from jarit.jobs.errors import classify, describe_rejected_request
 from jarit.jobs.models import FailureReason, JobStatus
 from jarit.models.output_models.recipe import RecipeResponse
 
@@ -148,6 +149,19 @@ class ExtractionRunner:
                     job.video_url, job.target_language, report
                 )
         except Exception as exc:
+            if detail := describe_rejected_request(exc):
+                provider = os.getenv("LLM_PROVIDER", "google").lower()
+                logger.error(
+                    "LLM provider rejected the request (check the model configuration): provider=%s %s",
+                    provider,
+                    detail,
+                    extra={
+                        "job_id": str(job_id),
+                        "provider": provider,
+                        "model": getattr(exc, "model_name", None),
+                        "status": getattr(exc, "status_code", None),
+                    },
+                )
             reason = classify(exc)
             logger.exception(
                 "Extraction job %s failed: %s",
